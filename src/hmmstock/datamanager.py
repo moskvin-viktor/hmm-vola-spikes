@@ -25,7 +25,8 @@ class StockReturnModel:
 
     def _fetch_data(self):
         """Fetch historical stock price data with caching."""
-        cache_file = "cached_stock_data.pkl"
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        cache_file = os.path.join(BASE_DIR, "data_cache", "cached_stock_data.pkl")
 
         # Load cached data if available
         if os.path.exists(cache_file):
