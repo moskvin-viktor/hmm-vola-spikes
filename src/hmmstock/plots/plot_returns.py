@@ -45,7 +45,7 @@ def plot_stock_analysis(data_dict, ticker, threshold_percentile=95):
     spike_values = []
 
     for col in df.columns:
-        if col.startswith("vol_"):
+        if col.startswith("vol_") or col == "market_vola":
             # Compute threshold for spikes
             threshold = np.percentile(df[col].dropna(), threshold_percentile)
 
