@@ -1,0 +1,21 @@
+# model.yaml
+
+# HMM model hyperparameters
+max_components: 3
+n_fits: 100
+
+# HMM-specific configuration
+hmm_config:
+  covariance_type: "full"
+  init_params: "stmc"
+  n_iter: 100
+  tol: 1e-4
+
+# Split config
+split:
+  method: "default"
+  train_size: 0.8
+  shuffle: false
+
+# Evaluation metric
+evaluation_metric: "LogLikelihoodWithEntropy"

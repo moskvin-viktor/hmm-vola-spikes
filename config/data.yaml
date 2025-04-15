@@ -1,0 +1,10 @@
+tickers:
+  - AAPL
+  - MSFT
+  - ^GSPC
+  - ^VIX
+  - AMZN
+period: "5y"
+interval: "1d"
+volatility_windows: [5, 10, 20]
+default_market_vola_proxy: "^VIX"

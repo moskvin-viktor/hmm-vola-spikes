@@ -1,24 +1,23 @@
+from omegaconf import OmegaConf
 import numpy as np
 import pandas as pd
 from hmmlearn import hmm
-from metrics import LogLikelihoodWithEntropy
-from datamanager import default_split
-from datamanager import StockReturnModel
 from typing import Dict
-
-
-import numpy as np
-import pandas as pd
-from hmmlearn import hmm
+from .metrics import LogLikelihoodWithEntropy
+from .datamanager import default_split
 
 class HMMStockModel:
-    def __init__(self, data_dict : Dict[str, pd.DataFrame], max_components=3, n_fits=100, 
+    def __init__(self, data_dict: Dict[str, pd.DataFrame], config_path: str,
                  evaluation_metric=None, train_test_splitter=None):
-        self.data_dict : Dict[str, pd.DataFrame] = data_dict
-        self.max_components = max_components
-        self.n_fits = n_fits
-        self.evaluation_metric = evaluation_metric() or LogLikelihoodWithEntropy()
+        self.cfg = OmegaConf.load(config_path)
+
+        self.data_dict = data_dict
+        self.max_components = self.cfg.get("max_components", 3)
+        self.n_fits = self.cfg.get("n_fits", 100)
+        self.random_seed = self.cfg.get("random_seed", 13)
+        self.evaluation_metric = evaluation_metric() if evaluation_metric else LogLikelihoodWithEntropy()
         self.splitter = train_test_splitter or default_split
+        self.hmm_config = self.cfg.hmm_config
         self.models = {}
         self.states = {}
 
@@ -36,25 +35,23 @@ class HMMStockModel:
         best_model = None
 
         X_train, X_validate = self.splitter(X_features)
-        np.random.seed(13)
+        np.random.seed(self.random_seed)
 
         for n_components in range(2, self.max_components + 1):
             for idx in range(self.n_fits):
                 model = hmm.GaussianHMM(
                     n_components=n_components,
-                    covariance_type="full",
+                    covariance_type=self.hmm_config.covariance_type,
                     random_state=idx,
-                    init_params="stmc",
-                    n_iter=100,
-                    tol=1e-4
+                    init_params=self.hmm_config.init_params,
+                    n_iter=self.hmm_config.n_iter,
+                    tol=self.hmm_config.tol
                 )
                 try:
                     model.fit(X_train)
                     base_score = self.evaluation_metric.evaluate(model, X_validate)
 
-                    means = model.means_.flatten()  # assuming 1D feature
-                    final_score = base_score  # weight separation by 2
-
+                    final_score = base_score  # You can include model.means_ separation weighting here
                     if final_score > best_overall_score:
                         best_model = model
                         best_overall_score = final_score
@@ -116,6 +113,6 @@ class HMMStockModel:
 
         transmat = model.transmat_
         diag = np.diag(transmat)
-        expected_steps = 1 / (1 - diag + 1e-10)  # Add epsilon to avoid div by zero
+        expected_steps = 1 / (1 - diag + 1e-10)
         return pd.Series(expected_steps, index=[f"VS{i}" for i in range(model.n_components)],
                          name="ExpectedStepsInState")
