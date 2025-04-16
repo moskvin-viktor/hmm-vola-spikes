@@ -5,6 +5,7 @@ from hmmlearn import hmm
 from typing import Dict
 from .metrics import LogLikelihoodWithEntropy
 from .datamanager import default_split
+import joblib
 
 class HMMStockModel:
     def __init__(self, data_dict: Dict[str, pd.DataFrame], config_path: str,
@@ -28,6 +29,14 @@ class HMMStockModel:
         else:
             raise ValueError("Returns column missing in DataFrame.")
 
+    def save_models(self, path):
+        for ticker, model in self.models.items():
+            joblib.dump(model, f"{path}/{ticker}_hmm.pkl")
+
+    def load_models(self, path):
+        for ticker in self.data_dict.keys():
+            self.models[ticker] = joblib.load(f"{path}/{ticker}_hmm.pkl")
+    
     def _fit_hmm(self, X_features):
         if len(X_features) < 20:
             return None
@@ -59,7 +68,6 @@ class HMMStockModel:
 
                 except Exception as e:
                     print(f"Error training HMM (components={n_components}): {e}")
-
         return best_model
 
     def _relabel_states_by_volatility(self, model, X, original_states):
