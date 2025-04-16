@@ -18,6 +18,7 @@ class HMMStockModel:
         self.evaluation_metric = evaluation_metric() if evaluation_metric else LogLikelihoodWithEntropy()
         self.splitter = train_test_splitter or default_split
         self.hmm_config = self.cfg.hmm_config
+        self.state_labeled_data = {}
         self.models = {}
         self.states = {}
 
@@ -75,7 +76,7 @@ class HMMStockModel:
     def train_all(self):
         for ticker, df in self.data_dict.items():
             print(f"Training HMM for {ticker} (1 to {self.max_components} states)...")
-            try:
+            try:    
                 X = self._compute_log_returns(df)
                 best_model = self._fit_hmm(X)
                 self.models[ticker] = best_model
@@ -87,13 +88,31 @@ class HMMStockModel:
             except Exception as e:
                 print(f"Error processing {ticker}: {e}")
 
-    def get_states(self):
+    def _get_states(self):
         state_dict = {}
         for ticker, states in self.states.items():
             if states is not None:
                 aligned_index = self.data_dict[ticker].index[-len(states):]
                 state_dict[ticker] = pd.Series(states, index=aligned_index)
         return pd.DataFrame(state_dict)
+
+    def generate_state_labeled_data(self):
+        """
+        Combines each ticker's original data with its HMM state labels into a single DataFrame.
+        Stores results in self.state_labeled_data.
+        """
+        states_df = self._get_states()
+        
+        for ticker, df in self.data_dict.items():
+            if ticker in states_df:
+                state_series = states_df[ticker]
+                state_series = pd.Series(states_df[ticker], index=df.index[-len(df):])
+                aligned_states = state_series.rename("regime_state").to_frame()
+                print(f"Aligning states for {ticker}...")
+                print(aligned_states)
+                print(df)
+                merged = df.merge(aligned_states, left_index=True, right_index=True, how="left")
+                self.state_labeled_data[ticker] = merged
 
     def get_transition_matrix(self, ticker):
         model = self.models.get(ticker)
