@@ -1,0 +1,16 @@
+volatility_plot:
+  quantile: 0.95
+  vol_colors:
+    vol_5: "blue"
+    vol_10: "green"
+    vol_20: "red"
+    market_vola: "orange"
+  colorscale: "viridis"
+  marker_size: 8
+
+mean_barplot:
+  barmode: "group"
+  colors: "Plotly"
+
+transition_matrix:
+  colorscale: "Blues"
