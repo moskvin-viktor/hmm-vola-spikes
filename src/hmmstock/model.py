@@ -6,6 +6,18 @@ from typing import Dict
 from .metrics import LogLikelihoodWithEntropy
 from .datamanager import default_split
 import joblib
+import logging
+import os
+
+# Set up logging
+os.makedirs("results/logs", exist_ok=True)
+logging.basicConfig(
+    filename="results/logs/hmm_model.log",
+    filemode='a',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class HMMStockModel:
     def __init__(self, data_dict: Dict[str, pd.DataFrame], config_path: str,
@@ -36,7 +48,7 @@ class HMMStockModel:
     def load_models(self, path):
         for ticker in self.data_dict.keys():
             self.models[ticker] = joblib.load(f"{path}/{ticker}_hmm.pkl")
-    
+
     def _fit_hmm(self, X_features):
         if len(X_features) < 20:
             return None
@@ -61,13 +73,13 @@ class HMMStockModel:
                     model.fit(X_train)
                     base_score = self.evaluation_metric.evaluate(model, X_validate)
 
-                    final_score = base_score  # You can include model.means_ separation weighting here
+                    final_score = base_score
                     if final_score > best_overall_score:
                         best_model = model
                         best_overall_score = final_score
 
                 except Exception as e:
-                    print(f"Error training HMM (components={n_components}): {e}")
+                    logger.warning(f"Error training HMM (components={n_components}): {e}")
         return best_model
 
     def _relabel_states_by_volatility(self, model, X, original_states):
@@ -83,8 +95,8 @@ class HMMStockModel:
 
     def train_all(self):
         for ticker, df in self.data_dict.items():
-            print(f"Training HMM for {ticker} (1 to {self.max_components} states)...")
-            try:    
+            logger.info(f"Training HMM for {ticker} (1 to {self.max_components} states)...")
+            try:
                 X = self._compute_log_returns(df)
                 best_model = self._fit_hmm(X)
                 self.models[ticker] = best_model
@@ -93,8 +105,13 @@ class HMMStockModel:
                     raw_states = best_model.predict(X)
                     relabeled = self._relabel_states_by_volatility(best_model, X, raw_states)
                     self.states[ticker] = relabeled
+                    logger.info(f"Training completed for {ticker} with {best_model.n_components} components.")
+                else:
+                    logger.warning(f"No model fitted for {ticker} due to insufficient data or training errors.")
+
             except Exception as e:
-                print(f"Error processing {ticker}: {e}")
+                logger.error(f"Error processing {ticker}: {e}")
+        self.generate_state_labeled_data()
 
     def _get_states(self):
         state_dict = {}
@@ -105,22 +122,17 @@ class HMMStockModel:
         return pd.DataFrame(state_dict)
 
     def generate_state_labeled_data(self):
-        """
-        Combines each ticker's original data with its HMM state labels into a single DataFrame.
-        Stores results in self.state_labeled_data.
-        """
         states_df = self._get_states()
-        
+
+        os.makedirs("results/csv", exist_ok=True)
         for ticker, df in self.data_dict.items():
             if ticker in states_df:
-                state_series = states_df[ticker]
                 state_series = pd.Series(states_df[ticker], index=df.index[-len(df):])
                 aligned_states = state_series.rename("regime_state").to_frame()
-                print(f"Aligning states for {ticker}...")
-                print(aligned_states)
-                print(df)
                 merged = df.merge(aligned_states, left_index=True, right_index=True, how="left")
                 self.state_labeled_data[ticker] = merged
+                merged.to_csv(f"results/csv/{ticker}_regime_states.csv")
+                logger.info(f"Saved labeled data for {ticker} to results/csv/{ticker}_regime_states.csv")
 
     def get_transition_matrix(self, ticker):
         model = self.models.get(ticker)
@@ -129,13 +141,13 @@ class HMMStockModel:
                                 index=[f"VS{i}" for i in range(model.n_components)],
                                 columns=[f"VS{i}" for i in range(model.n_components)])
         else:
-            print(f"No model found for {ticker}.")
+            logger.warning(f"No model found for {ticker}.")
             return None
 
     def expected_steps_before_change(self, ticker):
         model = self.models.get(ticker)
         if not model:
-            print(f"No model for {ticker}.")
+            logger.warning(f"No model for {ticker}.")
             return None
 
         transmat = model.transmat_
