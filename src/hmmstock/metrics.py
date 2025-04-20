@@ -1,4 +1,7 @@
 import numpy as np
+from omegaconf import OmegaConf
+
+
 
 class EvaluationMetric:
     def evaluate(self, model, X_validate):
@@ -6,8 +9,9 @@ class EvaluationMetric:
     
 
 class LogLikelihoodWithEntropy(EvaluationMetric):
-    def __init__(self, entropy_weight=5):
-        self.entropy_weight = entropy_weight
+    def __init__(self, config_path = "config/model.yaml"):
+        self.cfg = OmegaConf.load(config_path)
+        self.entropy_weight = self.cfg.get("entropy_weight", 3)
 
     def evaluate(self, model, X_validate):
         score = model.score(X_validate)
