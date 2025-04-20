@@ -136,10 +136,16 @@ class HMMStockModel:
 
     def get_transition_matrix(self, ticker):
         model = self.models.get(ticker)
+        os.makedirs("results/csv", exist_ok=True)
         if model:
-            return pd.DataFrame(model.transmat_,
-                                index=[f"VS{i}" for i in range(model.n_components)],
-                                columns=[f"VS{i}" for i in range(model.n_components)])
+            trans_df = pd.DataFrame(
+                model.transmat_,
+                index=[f"VS{i}" for i in range(model.n_components)],
+                columns=[f"VS{i}" for i in range(model.n_components)]
+            )
+            csv_path = f"results/csv/{ticker}_transition_matrix.csv"
+            trans_df.to_csv(csv_path)
+            logger.info(f"Saved transition matrix for {ticker} to {csv_path}")  
         else:
             logger.warning(f"No model found for {ticker}.")
             return None

@@ -1,4 +1,3 @@
-
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
@@ -9,53 +8,45 @@ class HMMResultVisualization:
         self.transition_df = transition_df
         self.config = config
 
-    def plot_feature_means_and_transition_matrix(self):
-        # === 1. Mean feature barplot per regime ===
+    def plot_feature_means(self):
         grouped_means = self.df.groupby('regime_state').mean()
 
-        fig1 = px.bar(
+        fig = px.bar(
             grouped_means.transpose(),
             barmode=self.config['mean_barplot']['barmode'],
             title='Feature Means per Regime',
             labels={'value': 'Mean Value', 'index': 'Feature'},
         )
-        fig1.update_layout(xaxis_title='Feature', yaxis_title='Mean')
-        fig1.show()
+        fig.update_layout(xaxis_title='Feature', yaxis_title='Mean')
+        return fig
 
-        # === 2. Transition matrix heatmap ===
-        if self.transition_df is not None:
-            fig2 = go.Figure(data=go.Heatmap(
-                z=self.transition_df.values,
-                x=self.transition_df.columns,
-                y=self.transition_df.index,
-                colorscale=self.config['transition_matrix']['colorscale'],
-                hovertemplate='From %{y} → %{x}: %{z:.2f}<extra></extra>'
-            ))
-            fig2.update_layout(title='HMM Transition Matrix')
-            fig2.show()
+    def plot_transition_matrix(self):
+        if self.transition_df is None:
+            return go.Figure()
 
-        # === 3. Time series with regime coloring ===
+        fig = go.Figure(data=go.Heatmap(
+            z=self.transition_df.values,
+            x=self.transition_df.columns,
+            y=self.transition_df.index,
+            colorscale=self.config['transition_matrix']['colorscale'],
+            hovertemplate='From %{y} → %{x}: %{z:.2f}<extra></extra>'
+        ))
+        fig.update_layout(title='HMM Transition Matrix')
+        return fig
+
+    def plot_time_series_by_regime(self):
         color_map = {
             state: px.colors.qualitative.Plotly[state % len(px.colors.qualitative.Plotly)]
-            for state in self.df['regime_state'].unique()
+            for state in sorted(self.df['regime_state'].unique())
         }
 
-        fig3 = px.scatter(
+        fig = px.scatter(
             self.df.reset_index(), x='Date', y='normalized_returns',
             color=self.df['regime_state'].map(color_map),
             title='Normalized Returns Over Time by Regime'
         )
-        fig3.update_traces(mode='lines+markers')
-        fig3.show()
-
-        # === 4. Regime frequency plot ===
-        regime_counts = self.df['regime_state'].value_counts().sort_index()
-        fig4 = px.bar(
-            x=regime_counts.index.astype(str), y=regime_counts.values,
-            labels={'x': 'Regime', 'y': 'Count'},
-            title='Regime Frequency'
-        )
-        fig4.show()
+        fig.update_traces(mode='lines+markers')
+        return fig
 
     def plot_states_vs_volatility(self):
         config = self.config['volatility_plot']
@@ -115,5 +106,4 @@ class HMMResultVisualization:
             ),
             showlegend=True
         )
-
-        fig.show()
+        return fig
