@@ -1,0 +1,38 @@
+[project]
+name = "hmmstock"
+version = "0.1.0"
+description = "HMM-based stock regime detection and visualization app"
+authors = [{ name = "Viktor Moskvin", email = "moskvin_viktor@pm.me" }]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.8"
+
+dependencies = [
+    "pandas>=1.4.0",
+    "numpy>=1.22.0",
+    "plotly>=5.10.0",
+    "dash>=2.9.0",
+    "hmmlearn>=0.2.8",
+    "joblib>=1.2.0",
+    "omegaconf>=2.3.0",
+    "scikit-learn>=1.0.2",
+]
+
+[project.optional-dependencies]
+dev = ["black", "flake8", "ipykernel", "jupyterlab", "notebook"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+include-package-data = true
+package-dir = { "" = "src" }
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
