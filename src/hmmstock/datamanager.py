@@ -4,6 +4,15 @@ import pandas as pd
 import os
 import pickle
 from pathlib import Path
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 def default_split(X, split_cfg=None):
     '''Splitting on train/test 
@@ -46,15 +55,17 @@ class DataManager:
         self.market_returns = self.returns[self.market_proxy]  # used for injection only
         self.output = self._generate_output()
 
+    # Inside DataManager
     def _fetch_data(self):
+        '''Fetch stock data from Yahoo Finance and cache it locally.'''
         if self.cache_file.exists():
             with open(self.cache_file, "rb") as f:
                 cached_data = pickle.load(f)
                 if set(self.all_tickers).issubset(set(cached_data.columns)):
-                    print("Loaded cached stock data.")
+                    logger.info("Loaded cached stock data.")
                     return cached_data[self.all_tickers]
 
-        print("Fetching new stock data...")
+        logger.info("Fetching new stock data from Yahoo Finance...")
         data = yf.download(self.all_tickers, period=self.period, interval=self.interval)["Close"]
         self.cache_file.parent.mkdir(exist_ok=True)
         with open(self.cache_file, "wb") as f:
