@@ -19,8 +19,4 @@ split:
 
 # Evaluation metric
 evaluation_metric: "LogLikelihoodWithEntropy"
-entropy_weight: 6
-
-market_proxy_processing:
-  type: "normalized"  # or "returns", "raw", "smoothed"
-  smoothing_window: 5
+entropy_weight: 10
