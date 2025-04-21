@@ -22,10 +22,12 @@ app.title = "HMM Regime Viewer"
 
 # Markdown descriptions for each plot
 descriptions = {
-    "means": "### 📊 Feature Means per Regime\nThis bar chart shows the average value of each feature within each HMM-identified regime. It helps interpret what characterizes each market regime.",
-    "transition": "### 🔄 HMM Transition Matrix\nThis heatmap visualizes the probability of switching from one regime to another. Diagonal values represent self-persistence; higher values indicate more stable regimes.",
-    "returns": "### 📈 Normalized Returns by Regime\nThis line plot shows stock returns over time, color-coded by the regime assigned by the HMM. It reveals how regimes align with price movement.",
-    "volatility": "### 🌪️ Regimes vs Volatility\nThis plot overlays regime states with selected volatility measures (e.g., VIX). Useful for understanding how regimes relate to market stress."
+    "means": "### Feature Means per Regime\nThis bar chart shows the average value of each feature within each HMM-identified regime. It helps interpret what characterizes each market regime.",
+    "transition": "### HMM Transition Matrix\nThis heatmap visualizes the probability of switching from one regime to another. Diagonal values represent self-persistence; higher values indicate more stable regimes.",
+    "returns": "### Normalized Returns by Regime\nThis line plot shows stock returns over time, color-coded by the regime assigned by the HMM. It reveals how regimes align with price movement.",
+    "volatility": "### Regimes vs Volatility\nThis plot overlays regime states with selected volatility measures (e.g., VIX). Useful for understanding how regimes relate to market stress.",
+    "quantiles": "### Regimes vs Volatility (VIX)\nThis plot overlays regime states with VIX quantiles. Useful for understanding how regimes relate to market stress.",
+    "correlations": "### Regimes vs Volatility\nThis plot overlays regime states with selected volatility measures (e.g., VIX). Useful for understanding how regimes relate to market stress."
 }
 
 
@@ -87,7 +89,9 @@ def update_plots(ticker):
         section("Feature Means per Regime", vis.plot_feature_means(), descriptions["means"]),
         section("HMM Transition Matrix", vis.plot_transition_matrix(), descriptions["transition"]),
         section("Normalized Returns by Regime", vis.plot_time_series_by_regime(), descriptions["returns"]),
-        section("HMM States vs. Volatility", vis.plot_states_vs_volatility(), descriptions["volatility"])
+        section("HMM States vs. Volatility", vis.plot_states_vs_volatility(), descriptions["volatility"]),
+        section("HMM States vs. Volatility (VIX)", vis.plot_regime_capture_of_vol_quantiles(), descriptions["quantiles"]),
+        section("HMM States Correlations", vis.plot_state_volatility_correlations(), descriptions["correlations"]),
     ]
 
 

@@ -107,3 +107,40 @@ class HMMResultVisualization:
             showlegend=True
         )
         return fig
+
+    def plot_state_volatility_correlations(self):
+        correlations = {}
+        for vol_col in self.config['volatility_plot']['vol_colors']:
+            if vol_col in self.df.columns:
+                correlations[vol_col] = self.df[[vol_col, 'regime_state']].corr().iloc[0, 1]
+
+        fig = px.bar(
+            x=list(correlations.keys()),
+            y=list(correlations.values()),
+            labels={'x': 'Volatility Measure', 'y': 'Correlation with Regime State'},
+            title='Correlation Between Volatility and Regime State'
+        )
+        return fig
+
+    def plot_regime_capture_of_vol_quantiles(self):
+        config = self.config['volatility_plot']
+        quantile = config['quantile']
+        capture_rates = {}
+
+        for vol_col in config['vol_colors']:
+            if vol_col in self.df.columns:
+                threshold = self.df[vol_col].quantile(quantile)
+                high_vol = self.df[self.df[vol_col] >= threshold]
+                captured = high_vol['regime_state'].value_counts(normalize=True)
+                capture_rates[vol_col] = captured
+
+        df_capture = pd.DataFrame(capture_rates).fillna(0)
+
+        fig = px.bar(
+            df_capture,
+            barmode='stack',
+            title=f'Regime Capture of Top {int(quantile*100)}% Volatility Events',
+            labels={'value': 'Capture Rate', 'index': 'Regime State'}
+        )
+        fig.update_layout(xaxis_title='Regime State', yaxis_title='Proportion of High Volatility Captured')
+        return fig
