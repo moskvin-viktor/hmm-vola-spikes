@@ -1,7 +1,7 @@
 # model.yaml
 
 # HMM model hyperparameters
-max_components: 3
+max_components: 2
 n_fits: 100
 
 # HMM-specific configuration
