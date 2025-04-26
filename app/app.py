@@ -9,8 +9,9 @@ import os
 # Set Plotly theme to dark
 pio.templates.default = "plotly_dark"
 
-# Available tickers
+# Available tickers and models
 AVAILABLE_TICKERS = ['AAPL', 'MSFT', 'GSPC', 'AMZN']
+AVAILABLE_MODELS = ['HMMModel']  # Later you can add e.g., 'HSMMModel'
 
 # Load config
 config_plots = OmegaConf.load("../config/visualization_config.yaml")
@@ -20,7 +21,7 @@ app = dash.Dash(__name__)
 server = app.server
 app.title = "HMM Regime Viewer"
 
-# Markdown descriptions for each plot
+# Markdown descriptions
 descriptions = {
     "means": "### Feature Means per Regime\nThis bar chart shows the average value of each feature within each HMM-identified regime. It helps interpret what characterizes each market regime.",
     "transition": "### HMM Transition Matrix\nThis heatmap visualizes the probability of switching from one regime to another. Diagonal values represent self-persistence; higher values indicate more stable regimes.",
@@ -51,7 +52,15 @@ app.layout = html.Div(style={"backgroundColor": "#1e1e1e", "padding": "2rem"}, c
     html.H1("📉 HMM Stock Regime Dashboard", style={"textAlign": "center", "color": "#ffffff", "marginBottom": "2rem"}),
 
     html.Div([
-        html.Label("Select Ticker:", style={"color": "white", "fontWeight": "bold", "marginRight": "1rem"}),
+        html.Label("Select Model:", style={"color": "white", "fontWeight": "bold", "marginRight": "1rem"}),
+        dcc.Dropdown(
+            id='model-dropdown',
+            options=[{"label": m, "value": m} for m in AVAILABLE_MODELS],
+            value='HMMModel',
+            clearable=False,
+            style={"width": "300px", "color": "#000"}
+        ),
+        html.Label("Select Ticker:", style={"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem"}),
         dcc.Dropdown(
             id='ticker-dropdown',
             options=[{"label": t, "value": t} for t in AVAILABLE_TICKERS],
@@ -59,7 +68,7 @@ app.layout = html.Div(style={"backgroundColor": "#1e1e1e", "padding": "2rem"}, c
             clearable=False,
             style={"width": "300px", "color": "#000"}
         )
-    ], style={"display": "flex", "justifyContent": "center", "marginBottom": "2rem"}),
+    ], style={"display": "flex", "justifyContent": "center", "alignItems": "center", "marginBottom": "2rem", "gap": "1rem"}),
 
     html.Div(id='plots-container')
 ])
@@ -67,17 +76,18 @@ app.layout = html.Div(style={"backgroundColor": "#1e1e1e", "padding": "2rem"}, c
 
 @app.callback(
     Output('plots-container', 'children'),
+    Input('model-dropdown', 'value'),
     Input('ticker-dropdown', 'value')
 )
-def update_plots(ticker):
-    # Construct file paths
-    safe_ticker = ticker.replace("^", "")  # for filename safety
-    state_path = f"../results/csv/{safe_ticker}_regime_states.csv"
-    trans_path = f"../results/csv/{safe_ticker}_transition_matrix.csv"
+def update_plots(selected_model, selected_ticker):
+    # Construct file paths dynamically
+    safe_ticker = selected_ticker.replace("^", "")  # for filename safety
+    state_path = f"../results_{selected_model}/csv/{safe_ticker}_regime_states.csv"
+    trans_path = f"../results_{selected_model}/csv/{safe_ticker}_transition_matrix.csv"
 
-    # Check files exist
+    # Check if files exist
     if not os.path.exists(state_path) or not os.path.exists(trans_path):
-        return html.Div(f"No data available for {ticker}", style={"color": "red"})
+        return html.Div(f"No data available for {selected_model} - {selected_ticker}", style={"color": "red"})
 
     # Load data
     df = pd.read_csv(state_path, index_col=0, parse_dates=True)

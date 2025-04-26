@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 class HMMModel:
+    '''A class to encapsulate the HMM model training and prediction process.
+    We use calssical HMM from hmmlearn library.
+    The model is trained on the volatility of the log returns of the stock prices and a market proxy volatiltiy
+    '''
     def __init__(self, name: str, X: np.ndarray, config, evaluation_metric):
         self.name = name
         self.X = X
@@ -24,7 +28,13 @@ class HMMModel:
         self.evaluation_metric = evaluation_metric
         self.model = None
 
-    def fit(self, splitter : callable[np.array], n_fits : int, random_seed : int):
+    def fit(self, splitter : callable, n_fits : int, random_seed : int):
+        '''Fit the HMM model to the data using the specified splitter and number of fits.
+        The configuration is used to set the number of components, covariance type, and other parameters.
+        The function will return the best model based on the evaluation metric.
+        The function will return None if the model cannot be trained.
+        The function will return the best model if the model is trained successfully.
+        '''
         if len(self.X) < 20:
             return None
 
@@ -33,16 +43,15 @@ class HMMModel:
 
         X_train, X_validate = splitter(self.X)
         np.random.seed(random_seed)
-
         for n_components in range(2, self.cfg.max_components + 1):
             for idx in range(n_fits):
                 model = hmm.GaussianHMM(
                     n_components=n_components,
-                    covariance_type=self.cfg.hmm_config.covariance_type,
+                    covariance_type=self.cfg.covariance_type,
                     random_state=idx,
-                    init_params=self.cfg.hmm_config.init_params,
-                    n_iter=self.cfg.hmm_config.n_iter,
-                    tol=self.cfg.hmm_config.tol
+                    init_params=self.cfg.init_params,
+                    n_iter=self.cfg.n_iter,
+                    tol=self.cfg.tol
                 )
                 try:
                     model.fit(X_train)
