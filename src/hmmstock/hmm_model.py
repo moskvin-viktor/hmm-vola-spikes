@@ -27,8 +27,9 @@ class HMMModel:
         self.cfg = config
         self.evaluation_metric = evaluation_metric
         self.model = None
+        self.is_layered = False
 
-    def fit(self, splitter : callable, n_fits : int, random_seed : int):
+    def fit(self, splitter : callable):
         '''Fit the HMM model to the data using the specified splitter and number of fits.
         The configuration is used to set the number of components, covariance type, and other parameters.
         The function will return the best model based on the evaluation metric.
@@ -42,9 +43,9 @@ class HMMModel:
         best_model = None
 
         X_train, X_validate = splitter(self.X)
-        np.random.seed(random_seed)
+        np.random.seed(self.cfg.random_seed)
         for n_components in range(2, self.cfg.max_components + 1):
-            for idx in range(n_fits):
+            for idx in range(self.cfg.n_fits):
                 model = hmm.GaussianHMM(
                     n_components=n_components,
                     covariance_type=self.cfg.covariance_type,

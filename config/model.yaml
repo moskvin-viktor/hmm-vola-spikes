@@ -9,8 +9,22 @@ HMMModel:
   init_params: "stmc"
   n_iter: 100
   tol: 1e-4
-  n_fits: 100
   max_components: 2
+
+LayeredHMMModel:
+  num_layers: 2
+  n_fits: 100
+  random_seed: 13
+  tol: 1e-4
+  layers:
+    - min_components: 2
+      max_components: 4
+      covariance_type: "full"
+      init_params: "stmc"
+    - min_components: 2
+      max_components: 3
+      covariance_type: "full"
+      init_params: "stmc"
 
 # Split config
 split:

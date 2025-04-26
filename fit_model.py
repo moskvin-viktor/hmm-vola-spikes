@@ -1,6 +1,6 @@
 def main():
     from omegaconf import OmegaConf
-    from src.hmmstock import DataManager, RegimeModelManager, HMMModel
+    from src.hmmstock import DataManager, RegimeModelManager, HMMModel, LayeredHMMModel
 
     # Load configuration
     config = OmegaConf.load("config/data.yaml")
@@ -8,7 +8,8 @@ def main():
     data = dm.get_data()
 
     # Initialize and train the model
-    model = RegimeModelManager(data_dict=data, config_path="config/model.yaml", model_class=HMMModel)
+    model = RegimeModelManager(data_dict=data, config_path="config/model.yaml", model_class=LayeredHMMModel)
+    # model = RegimeModelManager(data_dict=data, config_path="config/model.yaml", model_class=HMMModel)
     model.train_all()
 
     # Generate transition matrices and state-labeled data

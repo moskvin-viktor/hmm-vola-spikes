@@ -54,16 +54,18 @@ class RegimeModelManager:
         for ticker, df in self.data_dict.items():
             original_ticker = self.original_ticker_map[ticker]  # Retrieve original for logging
             
-            logger.info(f"Training {self.model_name} for {original_ticker} (1 to {self.cfg[self.model_name].max_components} states)...")
+            # logger.info(f"Training {self.model_name} for {original_ticker} (1 to {self.cfg[self.model_name].max_components} states)...")
             
             X = df.to_numpy()
             model_instance = self.model_class(ticker, X, self.cfg[self.model_name], self.evaluation_metric)
-            fitted_model = model_instance.fit(self.splitter, self.cfg[self.model_name].n_fits, self.cfg[self.model_name].random_seed)
+            fitted_model = model_instance.fit(self.splitter)
             self.models[ticker] = model_instance
 
             if fitted_model:
                 self.states[ticker] = model_instance.predict_states()
                 logger.info(f"Training completed for {original_ticker} with {fitted_model.n_components} components.")
+                # Save the model
+                model_instance.save_model()
             else:
                 logger.warning(f"No model fitted for {original_ticker} due to insufficient data or training errors.")
 
@@ -71,45 +73,73 @@ class RegimeModelManager:
 
     def _get_states(self) -> pd.DataFrame:
         """Returns a DataFrame with state sequences for each ticker."""
-        state_dict = {
-            ticker: pd.Series(states, index=self.data_dict[ticker].index[-len(states):])
-            for ticker, states in self.states.items() if states is not None
-        }
-        return pd.DataFrame(state_dict)
+        state_dict = {}
+
+        for ticker, model_instance in self.models.items():
+            states = model_instance.predict_states()
+
+            if states is None:
+                continue
+
+            if isinstance(states, pd.DataFrame):
+                # Layered model (multi-columns: regime_layer0, regime_layer1, ...)
+                state_df = states.copy()
+            else:
+                # Classic model (single array of states)
+                state_df = pd.DataFrame({f"regime_layer0": states},
+                                        index=self.data_dict[ticker].index[-len(states):])
+
+            state_df.index = self.data_dict[ticker].index[-len(state_df):]
+            state_dict[ticker] = state_df
+
+        return state_dict
 
     def generate_state_labeled_data(self):
         """Generates and saves state-labeled datasets for all tickers."""
-        states_df = self._get_states()
+        state_dict = self._get_states()
 
         for ticker, df in self.data_dict.items():
-            if ticker in states_df:
-                state_series = pd.Series(states_df[ticker], index=df.index[-len(df):])
-                aligned_states = state_series.rename("regime_state").to_frame()
-                merged_df = df.merge(aligned_states, left_index=True, right_index=True, how="left")
+            if ticker in state_dict:
+                state_info = state_dict[ticker]
+                merged_df = df.merge(state_info, left_index=True, right_index=True, how="left")
                 self.state_labeled_data[ticker] = merged_df
 
-                csv_path = os.path.join(self.results_dir, "csv", f"{ticker}_regime_states.csv")
+                # NEW: Create a subfolder per ticker
+                ticker_dir = os.path.join(self.results_dir, "csv", ticker)
+                os.makedirs(ticker_dir, exist_ok=True)
+
+                csv_path = os.path.join(ticker_dir, "regime_states.csv")
                 merged_df.to_csv(csv_path)
-                logger.info(f"Saved labeled data for {self.original_ticker_map[ticker]} to {csv_path}")
+                logger.info(f"Saved labeled regime data for {self.original_ticker_map[ticker]} to {csv_path}")
 
     def get_transition_matrix(self, ticker: str):
-        """Computes and saves the transition matrix for a given ticker's model."""
-        ticker = sanitize_ticker(ticker)  # Ensure input is sanitized
+        """Computes and saves the transition matrix (one per layer if layered)."""
+        ticker = sanitize_ticker(ticker)
         model_instance = self.models.get(ticker)
 
-        if not model_instance or not model_instance.model:
+        if not model_instance:
             logger.warning(f"No model found for {self.original_ticker_map.get(ticker, ticker)}.")
             return
 
-        trans_df = pd.DataFrame(
-            model_instance.model.transmat_,
-            index=[f"VS{i}" for i in range(model_instance.model.n_components)],
-            columns=[f"VS{i}" for i in range(model_instance.model.n_components)]
-        )
+        if getattr(model_instance, "is_layered", True):
+            models = model_instance.models
+        else:
+            models = [model_instance.model]
 
-        csv_path = os.path.join(self.results_dir, "csv", f"{ticker}_transition_matrix.csv")
-        trans_df.to_csv(csv_path)
-        logger.info(f"Saved transition matrix for {self.original_ticker_map[ticker]} to {csv_path}")
+        if not models or any(m is None for m in models):
+            logger.warning(f"No model(s) available for {self.original_ticker_map.get(ticker, ticker)}.")
+            return
+
+        for layer_idx, model in enumerate(models):
+            trans_df = pd.DataFrame(
+                model.transmat_,
+                index=[f"VS{layer_idx}_{i}" for i in range(model.n_components)],
+                columns=[f"VS{layer_idx}_{i}" for i in range(model.n_components)]
+            )
+
+            csv_path = os.path.join(self.results_dir, "csv", f"{ticker}_transition_matrix_layer{layer_idx}.csv")
+            trans_df.to_csv(csv_path)
+            logger.info(f"Saved transition matrix for {self.original_ticker_map[ticker]} (Layer {layer_idx}) to {csv_path}")
 
     def expected_steps_before_change(self, ticker: str) -> pd.Series:
         """Computes expected steps before changing states for a given model."""
