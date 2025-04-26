@@ -7,6 +7,7 @@ n_fits: 100
 # HMM-specific configuration
 hmm_config:
   covariance_type: "full"
+  random_seed: 13
   init_params: "stmc"
   n_iter: 100
   tol: 1e-4

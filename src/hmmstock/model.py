@@ -1,39 +1,46 @@
 from omegaconf import OmegaConf
 import numpy as np
 import pandas as pd
-from hmmlearn import hmm
-from typing import Dict
 from .metrics import LogLikelihoodWithEntropy
-from .datamanager import default_split
+from .data.datamanager import default_split
 import joblib
 import logging
 import os
-
+from .hmm_model import HMMModel
+from typing import Dict, Type
 # Set up logging
-os.makedirs("results/logs", exist_ok=True)
+logging_dir = "results/logs"
+os.makedirs(logging_dir, exist_ok=True)
 logging.basicConfig(
-    filename="results/logs/hmm_model.log",
+    filename=os.path.join(logging_dir, "hmm_model.log"),
     filemode='a',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-class HMMStockModel:
+def sanitize_ticker(ticker: str) -> str:
+    return ticker.replace("^", "").replace("/", "_")
+
+
+class RegimeModelManager:
     def __init__(self, data_dict: Dict[str, pd.DataFrame], config_path: str,
-                 evaluation_metric=None, train_test_splitter=None):
+                 evaluation_metric=None, train_test_splitter=None,
+                 model_class: Type[HMMModel] = HMMModel):
         self.cfg = OmegaConf.load(config_path)
 
         self.data_dict = data_dict
-        self.max_components = self.cfg.get("max_components", 3)
-        self.n_fits = self.cfg.get("n_fits", 100)
-        self.random_seed = self.cfg.get("random_seed", 13)
         self.evaluation_metric = evaluation_metric() if evaluation_metric else LogLikelihoodWithEntropy()
         self.splitter = train_test_splitter or default_split
-        self.hmm_config = self.cfg.hmm_config
+        self.model_class = model_class
+
         self.state_labeled_data = {}
-        self.models = {}
+        self.models: Dict[str, HMMModel] = {}
         self.states = {}
+
+        self.model_name = self.model_class.__name__
+        self.results_dir = f"results_{self.model_name}"
+        os.makedirs(os.path.join(self.results_dir, "csv"), exist_ok=True)
 
     def _compute_log_returns(self, df):
         if "normalized_returns" in df.columns:
@@ -41,74 +48,22 @@ class HMMStockModel:
         else:
             raise ValueError("Returns column missing in DataFrame.")
 
-    def save_models(self, path):
-        for ticker, model in self.models.items():
-            joblib.dump(model, f"{path}/{ticker}_hmm.pkl")
-
-    def load_models(self, path):
-        for ticker in self.data_dict.keys():
-            self.models[ticker] = joblib.load(f"{path}/{ticker}_hmm.pkl")
-
-    def _fit_hmm(self, X_features):
-        if len(X_features) < 20:
-            return None
-
-        best_overall_score = -np.inf
-        best_model = None
-
-        X_train, X_validate = self.splitter(X_features)
-        np.random.seed(self.random_seed)
-
-        for n_components in range(2, self.max_components + 1):
-            for idx in range(self.n_fits):
-                model = hmm.GaussianHMM(
-                    n_components=n_components,
-                    covariance_type=self.hmm_config.covariance_type,
-                    random_state=idx,
-                    init_params=self.hmm_config.init_params,
-                    n_iter=self.hmm_config.n_iter,
-                    tol=self.hmm_config.tol
-                )
-                try:
-                    model.fit(X_train)
-                    base_score = self.evaluation_metric.evaluate(model, X_validate)
-
-                    final_score = base_score
-                    if final_score > best_overall_score:
-                        best_model = model
-                        best_overall_score = final_score
-
-                except Exception as e:
-                    logger.warning(f"Error training HMM (components={n_components}): {e}")
-        return best_model
-
-    def _relabel_states_by_volatility(self, model, X, original_states):
-        state_vols = []
-        for state in range(model.n_components):
-            state_obs = X[original_states == state]
-            vol = np.std(state_obs)
-            state_vols.append((state, vol))
-
-        sorted_states = sorted(state_vols, key=lambda x: x[1])
-        state_map = {old: new for new, (old, _) in enumerate(sorted_states)}
-        return np.vectorize(state_map.get)(original_states)
-
     def train_all(self):
         for ticker, df in self.data_dict.items():
-            logger.info(f"Training HMM for {ticker} (1 to {self.max_components} states)...")
+            cleaned_ticker = sanitize_ticker(ticker)
+            logger.info(f"Training {self.model_name} for {ticker} (1 to {self.cfg.max_components} states)...")
             try:
                 X = self._compute_log_returns(df)
-                best_model = self._fit_hmm(X)
-                self.models[ticker] = best_model
+                model_instance = self.model_class(cleaned_ticker, X, self.cfg, self.evaluation_metric)
+                fitted_model = model_instance.fit(self.splitter, self.cfg.n_fits, self.cfg.random_seed)
+                self.models[cleaned_ticker] = model_instance
 
-                if best_model:
-                    raw_states = best_model.predict(X)
-                    relabeled = self._relabel_states_by_volatility(best_model, X, raw_states)
-                    self.states[ticker] = relabeled
-                    logger.info(f"Training completed for {ticker} with {best_model.n_components} components.")
+                if fitted_model:
+                    states = model_instance.predict_states()
+                    self.states[cleaned_ticker] = states
+                    logger.info(f"Training completed for {ticker} with {fitted_model.n_components} components.")
                 else:
                     logger.warning(f"No model fitted for {ticker} due to insufficient data or training errors.")
-
             except Exception as e:
                 logger.error(f"Error processing {ticker}: {e}")
         self.generate_state_labeled_data()
@@ -124,40 +79,40 @@ class HMMStockModel:
     def generate_state_labeled_data(self):
         states_df = self._get_states()
 
-        os.makedirs("results/csv", exist_ok=True)
         for ticker, df in self.data_dict.items():
-            if ticker in states_df:
-                state_series = pd.Series(states_df[ticker], index=df.index[-len(df):])
+            cleaned_ticker = sanitize_ticker(ticker)
+            if cleaned_ticker in states_df:
+                state_series = pd.Series(states_df[cleaned_ticker], index=df.index[-len(df):])
                 aligned_states = state_series.rename("regime_state").to_frame()
                 merged = df.merge(aligned_states, left_index=True, right_index=True, how="left")
-                self.state_labeled_data[ticker] = merged
-                merged.to_csv(f"results/csv/{ticker}_regime_states.csv")
-                logger.info(f"Saved labeled data for {ticker} to results/csv/{ticker}_regime_states.csv")
+                self.state_labeled_data[cleaned_ticker] = merged
+                merged.to_csv(os.path.join(self.results_dir, "csv", f"{cleaned_ticker}_regime_states.csv"))
+                logger.info(f"Saved labeled data for {cleaned_ticker} to {self.results_dir}/csv/{cleaned_ticker}_regime_states.csv")
 
     def get_transition_matrix(self, ticker):
-        model = self.models.get(ticker)
-        os.makedirs("results/csv", exist_ok=True)
-        if model:
+        cleaned_ticker = sanitize_ticker(ticker)
+        model_instance = self.models.get(cleaned_ticker)
+        if model_instance and model_instance.model:
             trans_df = pd.DataFrame(
-                model.transmat_,
-                index=[f"VS{i}" for i in range(model.n_components)],
-                columns=[f"VS{i}" for i in range(model.n_components)]
+                model_instance.model.transmat_,
+                index=[f"VS{i}" for i in range(model_instance.model.n_components)],
+                columns=[f"VS{i}" for i in range(model_instance.model.n_components)]
             )
-            csv_path = f"results/csv/{ticker}_transition_matrix.csv"
+            csv_path = os.path.join(self.results_dir, "csv", f"{cleaned_ticker}_transition_matrix.csv")
             trans_df.to_csv(csv_path)
-            logger.info(f"Saved transition matrix for {ticker} to {csv_path}")  
+            logger.info(f"Saved transition matrix for {cleaned_ticker} to {csv_path}")
         else:
             logger.warning(f"No model found for {ticker}.")
-            return None
 
     def expected_steps_before_change(self, ticker):
-        model = self.models.get(ticker)
-        if not model:
+        cleaned_ticker = sanitize_ticker(ticker)
+        model_instance = self.models.get(cleaned_ticker)
+        if not model_instance or not model_instance.model:
             logger.warning(f"No model for {ticker}.")
             return None
 
-        transmat = model.transmat_
+        transmat = model_instance.model.transmat_
         diag = np.diag(transmat)
         expected_steps = 1 / (1 - diag + 1e-10)
-        return pd.Series(expected_steps, index=[f"VS{i}" for i in range(model.n_components)],
+        return pd.Series(expected_steps, index=[f"VS{i}" for i in range(model_instance.model.n_components)],
                          name="ExpectedStepsInState")
