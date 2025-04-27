@@ -1,7 +1,6 @@
 import numpy as np
 import logging
 import os
-import joblib
 from hmmlearn import hmm
 
 # Set up logging
@@ -82,10 +81,3 @@ class HMMModel:
         sorted_states = sorted(state_vols, key=lambda x: x[1])
         state_map = {old: new for new, (old, _) in enumerate(sorted_states)}
         return np.vectorize(state_map.get)(original_states)
-
-    def save_model(self, path):
-        os.makedirs(path, exist_ok=True)
-        joblib.dump(self.model, os.path.join(path, f"{self.name}_hmm.pkl"))
-
-    def load_model(self, path):
-        self.model = joblib.load(os.path.join(path, f"{self.name}_hmm.pkl"))

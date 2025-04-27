@@ -106,16 +106,3 @@ class LayeredHMMModel:
         sorted_states = sorted(state_vols, key=lambda x: x[1])
         state_map = {old: new for new, (old, _) in enumerate(sorted_states)}
         return np.vectorize(state_map.get)(original_states)
-
-    def save_model(self):
-        '''Save each trained layer model separately.'''
-        os.makedirs(self.path, exist_ok=True)
-        for idx, model in enumerate(self.models):
-            joblib.dump(model, os.path.join(self.path, f"{self.name}_layer{idx+1}_hmm.pkl"))
-
-    def load_model(self):
-        '''Load all layer models from path.'''
-        self.models = []
-        for idx in range(self.cfg.num_layers):
-            model = joblib.load(os.path.join(self.path, f"{self.name}_layer{idx+1}_hmm.pkl"))
-            self.models.append(model)
