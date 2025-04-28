@@ -9,7 +9,9 @@ def main():
 
     # Initialize and train the model
     model = RegimeModelManager(data_dict=data, config_path="config/model.yaml", model_class=LayeredHMMModel)
+    model.train_all()
     model = RegimeModelManager(data_dict=data, config_path="config/model.yaml", model_class=HMMModel)
+    model.train_all()
     model = RegimeModelManager(data_dict=data, config_path="config/model.yaml", model_class=HierarchicalHMMModel)
     model.train_all()
 
