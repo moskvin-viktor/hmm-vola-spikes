@@ -1,9 +1,9 @@
 tickers:
   - AAPL
-  # - MSFT
-  # - ^GSPC
+  - MSFT
+  - ^GSPC
   - ^VIX
-  # - AMZN
+  - AMZN
 period: "5y"
 interval: "1d"
 volatility_windows: [5, 10, 20]

@@ -7,9 +7,9 @@ HMMModel:
   covariance_type: "full"
   random_seed: 13
   init_params: "stmc"
-  n_iter: 100
+  n_fits: 100
   tol: 1e-4
-  max_components: 2
+  max_components: 3
 
 LayeredHMMModel:
   num_layers: 2
@@ -18,11 +18,11 @@ LayeredHMMModel:
   tol: 1e-4
   layers:
     - min_components: 2
-      max_components: 4
+      max_components: 3
       covariance_type: "full"
       init_params: "stmc"
     - min_components: 2
-      max_components: 3
+      max_components: 2
       covariance_type: "full"
       init_params: "stmc"
 
@@ -51,4 +51,4 @@ split:
 
 # Evaluation metric
 evaluation_metric: "LogLikelihoodWithEntropy"
-entropy_weight: 10
+entropy_weight: 15

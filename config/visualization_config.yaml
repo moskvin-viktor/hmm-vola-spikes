@@ -1,3 +1,4 @@
+base_results_path: "/home/gincampari/repos/hmm-vola-spikes/results"
 volatility_plot:
   quantile: 0.95
   vol_colors:

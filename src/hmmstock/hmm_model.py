@@ -50,7 +50,7 @@ class HMMModel:
                     covariance_type=self.cfg.covariance_type,
                     random_state=idx,
                     init_params=self.cfg.init_params,
-                    n_iter=self.cfg.n_iter,
+                    n_iter=self.cfg.n_fits,
                     tol=self.cfg.tol
                 )
                 try:
