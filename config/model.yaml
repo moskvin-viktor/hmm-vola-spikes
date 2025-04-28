@@ -26,6 +26,23 @@ LayeredHMMModel:
       covariance_type: "full"
       init_params: "stmc"
 
+HierarchicalHMMModel:
+  n_fits: 100
+  random_seed: 13
+  tol: 1e-4
+
+  top_layer:
+    min_components: 2
+    max_components: 4
+    covariance_type: "full"
+    init_params: "stmc"
+
+  sub_layer:
+    min_components: 2
+    max_components: 3
+    covariance_type: "full"
+    init_params: "stmc"
+
 # Split config
 split:
   method: "default"
