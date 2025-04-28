@@ -1,146 +1,115 @@
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+from plotly.subplots import make_subplots
+
 
 class HMMResultVisualization:
-    def __init__(self, df: pd.DataFrame, transition_df: pd.DataFrame, config: dict):
+    def __init__(self, df: pd.DataFrame, transition_dfs: dict, config: dict):
+        """
+        Args:
+            df: DataFrame with observations and multiple regime state columns, e.g., 'regime_state_layer0', 'regime_state_layer1', etc.
+            transition_dfs: Dict of {layer_index: transition_matrix_df}
+            config: Plotting configuration
+        """
         self.df = df
-        self.transition_df = transition_df
+        self.transition_dfs = transition_dfs
         self.config = config
+        self.available_layers = self._detect_layers()
 
-    def plot_feature_means(self):
-        grouped_means = self.df.groupby('regime_state').mean()
+    def _detect_layers(self):
+        """Automatically detect available regime state layers from DataFrame columns."""
+        layers = []
+        for col in self.df.columns:
+            if col.startswith('regime_state_layer'):
+                layer_num = int(col.replace('regime_state_layer', ''))
+                layers.append(layer_num)
+        return sorted(layers)
+
+    def get_state_column(self, layer=0):
+        if layer not in self.available_layers:
+            raise ValueError(f"Layer {layer} not found. Available layers: {self.available_layers}")
+        return f'regime_state_layer{layer}'
+
+    def plot_feature_means(self, layer=0):
+        state_col = self.get_state_column(layer)
+        grouped_means = self.df.groupby(state_col).mean()
 
         fig = px.bar(
             grouped_means.transpose(),
             barmode=self.config['mean_barplot']['barmode'],
-            title='Feature Means per Regime',
+            title=f'Feature Means per Regime (Layer {layer})',
             labels={'value': 'Mean Value', 'index': 'Feature'},
         )
         fig.update_layout(xaxis_title='Feature', yaxis_title='Mean')
         return fig
 
-    def plot_transition_matrix(self):
-        if self.transition_df is None:
+    def plot_transition_matrix(self, layer=0):
+        if self.transition_dfs is None or layer not in self.transition_dfs:
             return go.Figure()
 
+        transition_df = self.transition_dfs[layer]
+
         fig = go.Figure(data=go.Heatmap(
-            z=self.transition_df.values,
-            x=self.transition_df.columns,
-            y=self.transition_df.index,
+            z=transition_df.values,
+            x=transition_df.columns,
+            y=transition_df.index,
             colorscale=self.config['transition_matrix']['colorscale'],
             hovertemplate='From %{y} → %{x}: %{z:.2f}<extra></extra>'
         ))
-        fig.update_layout(title='HMM Transition Matrix')
+        fig.update_layout(title=f'HMM Transition Matrix (Layer {layer})')
         return fig
 
-    def plot_time_series_by_regime(self):
+    def plot_time_series_by_regime(self, layer=0):
+        state_col = self.get_state_column(layer)
         color_map = {
             state: px.colors.qualitative.Plotly[state % len(px.colors.qualitative.Plotly)]
-            for state in sorted(self.df['regime_state'].unique())
+            for state in sorted(self.df[state_col].unique())
         }
 
         fig = px.scatter(
             self.df.reset_index(), x='Date', y='normalized_returns',
-            color=self.df['regime_state'].map(color_map),
-            title='Normalized Returns Over Time by Regime'
+            color=self.df[state_col].map(color_map),
+            title=f'Normalized Returns Over Time by Regime (Layer {layer})'
         )
         fig.update_traces(mode='lines+markers')
         return fig
 
-    def plot_states_vs_volatility(self):
-        config = self.config['volatility_plot']
-        states = self.df['regime_state']
-        aligned_index = self.df.index
+    def plot_observation_distributions_by_state(self, layer=0):
+        state_col = self.get_state_column(layer)
+        feature_cols = [col for col in self.df.columns if col not in ['Date'] and not col.startswith('regime_state')]
 
-        fig = go.Figure()
+        fig = make_subplots(
+            rows=1, cols=len(feature_cols),
+            subplot_titles=feature_cols,
+            shared_yaxes=True
+        )
 
-        for vol_col, color in config['vol_colors'].items():
-            if vol_col in self.df.columns:
-                vol_series = self.df[vol_col]
-                fig.add_trace(go.Scatter(
-                    x=aligned_index,
-                    y=vol_series,
-                    mode='lines',
-                    name=f'{vol_col} Vol',
-                    line=dict(color=color),
-                    yaxis='y2'
-                ))
+        for i, feature in enumerate(feature_cols):
+            for state in sorted(self.df[state_col].unique()):
+                subset = self.df[self.df[state_col] == state]
 
-                threshold = vol_series.quantile(config['quantile'])
-                fig.add_trace(go.Scatter(
-                    x=[aligned_index[0], aligned_index[-1]],
-                    y=[threshold, threshold],
-                    mode='lines',
-                    name=f'{vol_col} {int(config["quantile"]*100)}th %tile',
-                    line=dict(color=color, dash='dash'),
-                    yaxis='y2',
-                    showlegend=True
-                ))
-
-        fig.add_trace(go.Scatter(
-            x=aligned_index,
-            y=states,
-            mode='markers',
-            marker=dict(color=states, colorscale=config['colorscale'], size=config['marker_size']),
-            name='HMM State',
-            yaxis='y1'
-        ))
+                fig.add_trace(
+                    go.Histogram(
+                        x=subset[feature],
+                        name=f"State {state}",
+                        opacity=0.6,
+                        nbinsx=50,
+                        marker_color=px.colors.qualitative.Plotly[state % len(px.colors.qualitative.Plotly)],
+                        showlegend=(i == 0)  # only show legend once
+                    ),
+                    row=1, col=i+1
+                )
 
         fig.update_layout(
-            title=f'HMM States vs. Volatility (with {int(config["quantile"]*100)}th Percentile Lines)',
-            xaxis_title='Date',
-            yaxis=dict(
-                title='HMM State',
-                side='left',
-                showgrid=True,
-                tickmode='array',
-                tickvals=list(sorted(states.unique())),
-                ticktext=[str(s) for s in sorted(states.unique())]
-            ),
-            yaxis2=dict(
-                title='Volatility',
-                overlaying='y',
-                side='right',
-                showgrid=False
-            ),
-            showlegend=True
+            title_text=f'Observation Distributions by Regime State (Layer {layer})',
+            barmode='overlay',
+            height=500,
+            width=300 * len(feature_cols),
         )
+        fig.update_traces(opacity=0.5)
         return fig
 
-    def plot_state_volatility_correlations(self):
-        correlations = {}
-        for vol_col in self.config['volatility_plot']['vol_colors']:
-            if vol_col in self.df.columns:
-                correlations[vol_col] = self.df[[vol_col, 'regime_state']].corr().iloc[0, 1]
-
-        fig = px.bar(
-            x=list(correlations.keys()),
-            y=list(correlations.values()),
-            labels={'x': 'Volatility Measure', 'y': 'Correlation with Regime State'},
-            title='Correlation Between Volatility and Regime State'
-        )
-        return fig
-
-    def plot_regime_capture_of_vol_quantiles(self):
-        config = self.config['volatility_plot']
-        quantile = config['quantile']
-        capture_rates = {}
-
-        for vol_col in config['vol_colors']:
-            if vol_col in self.df.columns:
-                threshold = self.df[vol_col].quantile(quantile)
-                high_vol = self.df[self.df[vol_col] >= threshold]
-                captured = high_vol['regime_state'].value_counts(normalize=True)
-                capture_rates[vol_col] = captured
-
-        df_capture = pd.DataFrame(capture_rates).fillna(0)
-
-        fig = px.bar(
-            df_capture,
-            barmode='stack',
-            title=f'Regime Capture of Top {int(quantile*100)}% Volatility Events',
-            labels={'value': 'Capture Rate', 'index': 'Regime State'}
-        )
-        fig.update_layout(xaxis_title='Regime State', yaxis_title='Proportion of High Volatility Captured')
-        return fig
+    def available_layer_indices(self):
+        """Return the list of detected available layers."""
+        return self.available_layers
