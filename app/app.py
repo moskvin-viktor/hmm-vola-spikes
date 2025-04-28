@@ -11,7 +11,7 @@ pio.templates.default = "plotly_dark"
 
 # Available tickers and models
 AVAILABLE_TICKERS = ['AAPL', 'MSFT', 'GSPC', 'AMZN']
-AVAILABLE_MODELS = ['HMMModel']  # Later you can add e.g., 'HSMMModel'
+AVAILABLE_MODELS = ['HMMModel', 'LayeredHMMModel']  # Later you can add e.g., 'HSMMModel'
 
 # Load config
 config_plots = OmegaConf.load("../config/visualization_config.yaml")
@@ -28,7 +28,8 @@ descriptions = {
     "returns": "### Normalized Returns by Regime\nThis line plot shows stock returns over time, color-coded by the regime assigned by the HMM. It reveals how regimes align with price movement.",
     "volatility": "### Regimes vs Volatility\nThis plot overlays regime states with selected volatility measures (e.g., VIX). Useful for understanding how regimes relate to market stress.",
     "quantiles": "### Regimes vs Volatility (VIX)\nThis plot overlays regime states with VIX quantiles. Useful for understanding how regimes relate to market stress.",
-    "correlations": "### Regimes vs Volatility\nThis plot overlays regime states with selected volatility measures (e.g., VIX). Useful for understanding how regimes relate to market stress."
+    "correlations": "### Regimes vs Volatility\nThis plot overlays regime states with selected volatility measures (e.g., VIX). Useful for understanding how regimes relate to market stress.",
+    "distribution": "### Regimes vs Volatility\nThis plot overlays regime states with selected volatility measures (e.g., VIX). Useful for understanding how regimes relate to market stress.", 
 }
 
 
@@ -69,40 +70,61 @@ app.layout = html.Div(style={"backgroundColor": "#1e1e1e", "padding": "2rem"}, c
             style={"width": "300px", "color": "#000"}
         )
     ], style={"display": "flex", "justifyContent": "center", "alignItems": "center", "marginBottom": "2rem", "gap": "1rem"}),
+    html.Label("Select Layer:", id="layer-label", style={"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "none"}),
+        dcc.Dropdown(
+            id='layer-dropdown',
+            options=[{"label": f"Layer {i}", "value": i} for i in range(3)],  # Assume max 3 layers for now
+            value=0,
+            clearable=False,
+            style={"width": "200px", "color": "#000", "display": "none"}
+        ),
 
     html.Div(id='plots-container')
 ])
+
+@app.callback(
+    Output('layer-dropdown', 'style'),
+    Output('layer-label', 'style'),
+    Input('model-dropdown', 'value')
+)
+def toggle_layer_dropdown(model_name):
+    if model_name == 'LayeredHMMModel':
+        return {"width": "200px", "color": "#000", "display": "block"}, {"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "block"}
+    else:
+        return {"width": "200px", "color": "#000", "display": "none"}, {"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "none"}
 
 
 @app.callback(
     Output('plots-container', 'children'),
     Input('model-dropdown', 'value'),
-    Input('ticker-dropdown', 'value')
+    Input('ticker-dropdown', 'value'),
+    Input('layer-dropdown', 'value')  # NEW
 )
-def update_plots(selected_model, selected_ticker):
+def update_plots(selected_model, selected_ticker, selected_layer):
     # Construct file paths dynamically
-    safe_ticker = selected_ticker.replace("^", "")  # for filename safety
-    state_path = f"../results_{selected_model}/csv/{safe_ticker}_regime_states.csv"
-    trans_path = f"../results_{selected_model}/csv/{safe_ticker}_transition_matrix.csv"
+    vis = HMMResultVisualization(selected_model, selected_ticker, config_plots)
 
-    # Check if files exist
-    if not os.path.exists(state_path) or not os.path.exists(trans_path):
-        return html.Div(f"No data available for {selected_model} - {selected_ticker}", style={"color": "red"})
+    vis = HMMResultVisualization(selected_model, selected_ticker, config_plots)
 
-    # Load data
-    df = pd.read_csv(state_path, index_col=0, parse_dates=True)
-    trans = pd.read_csv(trans_path, index_col=0)
+    if selected_model == 'LayeredHMMModel':
+        return [
+            section("Feature Means per Regime", vis.plot_feature_means(layer=selected_layer), descriptions["means"]),
+            section("HMM Transition Matrix", vis.plot_transition_matrix(layer=selected_layer), descriptions["transition"]),
+            section("Normalized Returns by Regime", vis.plot_time_series_by_regime(layer=selected_layer), descriptions["returns"]),
+            section("HMM States vs. Volatility", vis.plot_states_vs_volatility(layer=selected_layer), descriptions["volatility"]),
+            section("HMM States vs. Volatility (VIX)", vis.plot_regime_capture_of_vol_quantiles(layer=selected_layer), descriptions["quantiles"]),
+            section("HMM States Correlations", vis.plot_state_volatility_correlations(layer=selected_layer), descriptions["correlations"]),
+        ]
+    else:
+        return [
+            section("Feature Means per Regime", vis.plot_feature_means(), descriptions["means"]),
+            section("HMM Transition Matrix", vis.plot_transition_matrix(), descriptions["transition"]),
+            section("Normalized Returns by Regime", vis.plot_time_series_by_regime(), descriptions["returns"]),
+            section("HMM States vs. Volatility", vis.plot_states_vs_volatility(), descriptions["volatility"]),
+            section("HMM States vs. Volatility (VIX)", vis.plot_regime_capture_of_vol_quantiles(), descriptions["quantiles"]),
+            section("HMM States Correlations", vis.plot_state_volatility_correlations(), descriptions["correlations"]),
+        ]
 
-    vis = HMMResultVisualization(df, trans, config_plots)
-
-    return [
-        section("Feature Means per Regime", vis.plot_feature_means(), descriptions["means"]),
-        section("HMM Transition Matrix", vis.plot_transition_matrix(), descriptions["transition"]),
-        section("Normalized Returns by Regime", vis.plot_time_series_by_regime(), descriptions["returns"]),
-        section("HMM States vs. Volatility", vis.plot_states_vs_volatility(), descriptions["volatility"]),
-        section("HMM States vs. Volatility (VIX)", vis.plot_regime_capture_of_vol_quantiles(), descriptions["quantiles"]),
-        section("HMM States Correlations", vis.plot_state_volatility_correlations(), descriptions["correlations"]),
-    ]
 
 
 if __name__ == "__main__":

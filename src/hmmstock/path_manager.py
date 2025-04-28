@@ -1,9 +1,10 @@
 from pathlib import Path
 
 class PathManager:
-    def __init__(self, base_dir: str = "results"):
-        self.base_dir = Path(base_dir)
-        self.models_dir = self.base_dir / "models"
+    def __init__(self, results_base_dir: str):
+        self.results_base_dir = Path(results_base_dir)
+        self.base_dir = self.results_base_dir
+        self.models_dir = self.base_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.models_dir.mkdir(parents=True, exist_ok=True)
 
