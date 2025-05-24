@@ -7,7 +7,7 @@ This project provides tools and visualizations for analyzing stock market regime
 ## Documentation Structure
 
 - [Data](data.md) — Detailed description of data sources, processing, and transformations.
-- Model Usage — Instructions for training and evaluating HMM models.
+- [Model](model.md) — Description of the Model
 - Visualization — Guide to the Dash dashboard and plot interpretation.
 - Configuration — Explanation of configuration files and parameters.
 

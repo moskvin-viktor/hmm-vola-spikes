@@ -2,6 +2,7 @@ site_name: My Docs
 nav:
   - Home: index.md
   - Data: data.md
+  - Models: model.md
 theme: readthedocs
 use_directory_urls: false
 plugins:
