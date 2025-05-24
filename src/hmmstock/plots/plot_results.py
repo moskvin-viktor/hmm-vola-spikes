@@ -58,14 +58,18 @@ class HMMResultVisualization:
             if col.startswith('regime_layer'):
                 layer_num = int(col.replace('regime_layer', ''))
                 layers.append(layer_num)
+            if col == 'top_level_state' or col == 'sub_level_state':
+                layers.append(col)
         return sorted(layers)
 
-    def get_state_column(self, layer=0):
+    def get_state_column(self, layer=0) -> str:
         if layer not in self.available_layers:
             raise ValueError(f"Layer {layer} not found. Available layers: {self.available_layers}")
+        if isinstance(layer, str):
+            return layer
         return f'regime_layer{layer}'
 
-    def plot_feature_means(self, layer=0):
+    def plot_feature_means(self, layer=0) -> go.Figure:
         state_col = self.get_state_column(layer)
         grouped_means = self.df.groupby(state_col).mean()
 
@@ -78,7 +82,7 @@ class HMMResultVisualization:
         fig.update_layout(xaxis_title='Feature', yaxis_title='Mean')
         return fig
 
-    def plot_transition_matrix(self, layer=0):
+    def plot_transition_matrix(self, layer=0) -> go.Figure:
         if not self.transition_dfs or layer not in self.transition_dfs:
             return go.Figure()
 
@@ -94,7 +98,7 @@ class HMMResultVisualization:
         fig.update_layout(title=f'HMM Transition Matrix (Layer {layer})')
         return fig
 
-    def plot_time_series_by_regime(self, layer=0):
+    def plot_time_series_by_regime(self, layer=0) -> go.Figure:
         state_col = self.get_state_column(layer)
         color_map = {
             state: px.colors.qualitative.Plotly[state % len(px.colors.qualitative.Plotly)]
@@ -109,7 +113,7 @@ class HMMResultVisualization:
         fig.update_traces(mode='lines+markers')
         return fig
 
-    def plot_observation_distributions_by_state(self, layer=0):
+    def plot_observation_distributions_by_state(self, layer=0) -> go.Figure:
         state_col = self.get_state_column(layer)
         feature_cols = [col for col in self.df.columns if col not in ['Date'] and not col.startswith('regime_state')]
 
@@ -144,7 +148,7 @@ class HMMResultVisualization:
         fig.update_traces(opacity=0.5)
         return fig
 
-    def plot_states_vs_volatility(self, layer=0):
+    def plot_states_vs_volatility(self, layer=0) -> go.Figure:
         """
         Plot HMM regime states against volatility indicators for a specific layer.
         

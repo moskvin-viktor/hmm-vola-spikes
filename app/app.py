@@ -5,13 +5,14 @@ from hmmstock.plots.plot_results import HMMResultVisualization
 from omegaconf import OmegaConf
 import pandas as pd
 import os
+from dash.html import Div
 
 # Set Plotly theme to dark
 pio.templates.default = "plotly_dark"
 
 # Available tickers and models
 AVAILABLE_TICKERS = ['AAPL', 'MSFT', 'GSPC', 'AMZN']
-AVAILABLE_MODELS = ['HMMModel', 'LayeredHMMModel']  # Later you can add e.g., 'HSMMModel'
+AVAILABLE_MODELS = ['HMMModel', 'LayeredHMMModel', 'HierarchicalHMMModel']  # Later you can add e.g., 'HSMMModel'
 
 # Load config
 config_plots = OmegaConf.load("../config/visualization_config.yaml")
@@ -50,7 +51,7 @@ def section(title, figure, description_md):
 
 # App layout
 app.layout = html.Div(style={"backgroundColor": "#1e1e1e", "padding": "2rem"}, children=[
-    html.H1("📉 HMM Stock Regime Dashboard", style={"textAlign": "center", "color": "#ffffff", "marginBottom": "2rem"}),
+    html.H1("HMM Stock Regime Dashboard", style={"textAlign": "center", "color": "#ffffff", "marginBottom": "2rem"}),
 
     html.Div([
         html.Label("Select Model:", style={"color": "white", "fontWeight": "bold", "marginRight": "1rem"}),
@@ -71,28 +72,44 @@ app.layout = html.Div(style={"backgroundColor": "#1e1e1e", "padding": "2rem"}, c
         )
     ], style={"display": "flex", "justifyContent": "center", "alignItems": "center", "marginBottom": "2rem", "gap": "1rem"}),
     html.Label("Select Layer:", id="layer-label", style={"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "none"}),
-        dcc.Dropdown(
-            id='layer-dropdown',
-            options=[{"label": f"Layer {i}", "value": i} for i in range(3)],  # Assume max 3 layers for now
-            value=0,
-            clearable=False,
-            style={"width": "200px", "color": "#000", "display": "none"}
-        ),
+    dcc.Dropdown(
+        id='layer-dropdown',
+        options=[],  # dynamically set
+        value=None,
+        clearable=False,
+        style={"width": "200px", "color": "#000", "display": "none"}
+    ),
 
     html.Div(id='plots-container')
 ])
-
 @app.callback(
     Output('layer-dropdown', 'style'),
     Output('layer-label', 'style'),
+    Output('layer-dropdown', 'options'),
+    Output('layer-dropdown', 'value'),
     Input('model-dropdown', 'value')
 )
 def toggle_layer_dropdown(model_name):
     if model_name == 'LayeredHMMModel':
-        return {"width": "200px", "color": "#000", "display": "block"}, {"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "block"}
+        dropdown_style = {"width": "200px", "color": "#000", "display": "block"}
+        label_style = {"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "block"}
+        options = [{"label": f"Layer {i}", "value": i} for i in range(2)]
+        value = 0
+    elif model_name == 'HierarchicalHMMModel':
+        dropdown_style = {"width": "200px", "color": "#000", "display": "block"}
+        label_style = {"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "block"}
+        options = [
+            {"label": "Top Level", "value": "top_level_state"},
+            {"label": "Sub Level", "value": "sub_level_state"}
+        ]
+        value = "top_level_state"
     else:
-        return {"width": "200px", "color": "#000", "display": "none"}, {"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "none"}
+        dropdown_style = {"width": "200px", "color": "#000", "display": "none"}
+        label_style = {"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "none"}
+        options = []
+        value = None
 
+    return dropdown_style, label_style, options, value
 
 @app.callback(
     Output('plots-container', 'children'),
@@ -100,13 +117,11 @@ def toggle_layer_dropdown(model_name):
     Input('ticker-dropdown', 'value'),
     Input('layer-dropdown', 'value')  # NEW
 )
-def update_plots(selected_model, selected_ticker, selected_layer):
+def update_plots(selected_model, selected_ticker, selected_layer) -> list[Div]:
     # Construct file paths dynamically
     vis = HMMResultVisualization(selected_model, selected_ticker, config_plots)
 
-    vis = HMMResultVisualization(selected_model, selected_ticker, config_plots)
-
-    if selected_model == 'LayeredHMMModel':
+    if selected_model == 'LayeredHMMModel' or selected_model == 'HierarchicalHMMModel':
         return [
             section("Feature Means per Regime", vis.plot_feature_means(layer=selected_layer), descriptions["means"]),
             section("HMM Transition Matrix", vis.plot_transition_matrix(layer=selected_layer), descriptions["transition"]),
