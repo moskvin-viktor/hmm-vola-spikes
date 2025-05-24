@@ -5,7 +5,7 @@ description = "HMM-based stock regime detection and visualization app"
 authors = [{ name = "Viktor Moskvin", email = "moskvin_viktor@pm.me" }]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 
 dependencies = [
     "pandas>=1.4.0",
@@ -17,6 +17,10 @@ dependencies = [
     "omegaconf>=2.3.0",
     "scikit-learn>=1.0.2",
     "yfinance==0.2.54",
+    "mkdocs>=1.6.1",
+    "mkdocstrings[python]>=0.26.1",
+    "pymdown-extensions>=10.15",
+    "python-markdown-math>=0.9",
 ]
 
 [project.optional-dependencies]
@@ -31,7 +35,7 @@ package-dir = { "" = "src" }
 
 [tool.black]
 line-length = 88
-target-version = ['py39']
+target-version = ['py312']
 include = '\.pyi?$'
 
 [build-system]
