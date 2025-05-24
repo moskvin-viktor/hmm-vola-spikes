@@ -37,9 +37,33 @@ def default_split(X, split_cfg=None):
     val_idx = indices[train_end:]
 
     return X[train_idx], X[val_idx]
+
 class DataManager:
-    '''Class to manage stock data fetching, processing, and caching.'''
+    """
+    Class to manage stock data fetching, preprocessing, and caching.
+
+    This class retrieves data from Yahoo Finance, computes log returns,
+    normalizes the data, applies date filtering, and injects a processed 
+    market volatility proxy (like the VIX) into the final output.
+
+    Attributes:
+        config (dict): Configuration object loaded from YAML/OmegaConf.
+        data (pd.DataFrame): Raw stock price data.
+        returns (pd.DataFrame): Daily log returns.
+        mu (pd.Series): Mean returns per ticker.
+        normalized_returns (pd.DataFrame): Mean-centered returns.
+        rolling_volatility (dict): Dictionary of volatility DataFrames.
+        output (dict): Final structured data per ticker.
+    """
+
     def __init__(self, config):
+        """
+        Initialize the DataManager with configuration.
+
+        Args:
+            config (dict): Contains tickers, period, interval, volatility settings,
+                           market proxy config, and optional date filter.
+        """
         self.config = config
         self._load_config()
 
@@ -49,7 +73,8 @@ class DataManager:
         self.rolling_volatility = self._compute_rolling_volatility()
         self.output = self._generate_output()
 
-    def _load_config(self):
+    def _load_config(self) -> None:
+        """Parses and stores configuration parameters."""
         self.tickers = self.config["tickers"]
         self.period = self.config["period"]
         self.interval = self.config["interval"]
@@ -61,8 +86,13 @@ class DataManager:
         self.cache_file = Path(__file__).parent / "data_cache" / "cached_stock_data.pkl"
         self.all_tickers = list(set(self.tickers + [self.market_proxy]))
 
-    def _fetch_data(self):
-        '''Fetch stock data from Yahoo Finance and cache it locally.'''
+    def _fetch_data(self) -> pd.DataFrame:
+        """
+        Downloads or loads cached stock data.
+
+        Returns:
+            pd.DataFrame: Close price data for tickers.
+        """
         if self.cache_file.exists():
             with open(self.cache_file, "rb") as f:
                 cached_data = pickle.load(f)
@@ -78,6 +108,15 @@ class DataManager:
         return self._apply_date_filter(data)
 
     def _apply_date_filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Applies start and end date filters to the DataFrame.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame.
+
+        Returns:
+            pd.DataFrame: Filtered DataFrame.
+        """
         start = self.date_range.get("start")
         end = self.date_range.get("end")
         if start:
@@ -87,13 +126,31 @@ class DataManager:
         return df
 
     def _compute_daily_returns(self):
+        """
+        Computes daily log returns.
+
+        Returns:
+            pd.DataFrame: Log returns.
+        """
         return np.log(self.data / self.data.shift(1)).dropna()
 
-    def _normalize_returns(self):
+    def _normalize_returns(self):# -> tuple:
+        """
+        Mean-centers returns.
+
+        Returns:
+            Tuple[pd.Series, pd.DataFrame]: Mean return vector, normalized returns.
+        """
         mu = self.returns.mean()
         return mu, self.returns - mu
 
-    def _compute_rolling_volatility(self):
+    def _compute_rolling_volatility(self):# -> dict[Any, DataFrame]:
+        """
+        Computes and normalizes rolling volatility.
+
+        Returns:
+            dict: Dict of ticker → DataFrame of rolling vol columns.
+        """
         vol_dict = {ticker: pd.DataFrame(index=self.returns.index) for ticker in self.tickers}
         for ticker in self.tickers:
             for window in self.volatility_windows:
@@ -102,7 +159,13 @@ class DataManager:
                 vol_dict[ticker][f"vol_{window}"] = norm_vol
         return vol_dict
 
-    def _generate_output(self):
+    def _generate_output(self) -> dict[str, pd.DataFrame]:# -> dict:
+        """
+        Combines normalized returns, volatility, and market proxy into output.
+
+        Returns:
+            dict: Dictionary of ticker → final DataFrame.
+        """
         proxy_series = self.data[self.market_proxy]
         processed_proxy = MarketVolatilityProxyCalculations(
             proxy_series, self.market_proxy_conf
@@ -121,5 +184,11 @@ class DataManager:
 
         return output
 
-    def get_data(self):
+    def get_data(self) -> dict[str, pd.DataFrame]:
+        """
+        Returns the processed dataset.
+
+        Returns:
+            dict: Dictionary of ticker → DataFrame with returns, volatility, and proxy.
+        """
         return self.output
