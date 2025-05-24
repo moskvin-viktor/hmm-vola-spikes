@@ -14,12 +14,31 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
 class LayeredHMMModel:
-    '''
-    Layered HMM model: trains multiple HMMs sequentially.
-    Layer 1 on raw features, Layer 2 on posterior probabilities from Layer 1, etc.
-    '''
+    """
+    Layered HMM model: trains multiple HMMs sequentially in a hierarchical fashion.
+
+    Each layer is trained on the posterior probabilities produced by the previous layer:
+    - Layer 1: Trained on raw features
+    - Layer 2: Trained on Layer 1's posterior probabilities
+    - ...
+    - Final Layer: Trained on output of preceding layer
+
+    This enables the model to learn increasingly abstract or hierarchical temporal regimes.
+    """
+
     def __init__(self, name: str, X: np.ndarray, config, evaluation_metric):
+        """
+        Initializes the LayeredHMMModel.
+
+        Args:
+            name (str): Name of the model instance.
+            X (np.ndarray): Input data for training.
+            config: Configuration object containing HMM and layer settings.
+            evaluation_metric (callable): Function to evaluate model performance.
+        """
         self.name = name
         self.X = X
         self.cfg = config
@@ -28,9 +47,16 @@ class LayeredHMMModel:
         self.is_layered = True
         self.path = os.path.join(f"results_{self.name}", "models", f"{self.name}_layered_hmm")
 
-    def fit(self, splitter: callable):
-        '''Fit a Layered HMM model using the provided data splitter.'''
+    def fit(self, splitter: callable) -> None | hmm.GaussianHMM:
+        """
+        Trains a sequence of HMM models, each on the posterior probabilities of the previous layer.
 
+        Args:
+            splitter (callable): A function that splits data into training and validation sets.
+
+        Returns:
+            hmm.GaussianHMM | None: Returns the best model from the final layer, or None if training failed.
+        """
         if len(self.X) < 20:
             logger.warning(f"[{self.name}] Not enough data to train")
             return None
@@ -55,7 +81,7 @@ class LayeredHMMModel:
                         random_state=fit_idx,
                         init_params=layer_cfg.init_params,
                         n_iter=self.cfg.n_fits, 
-                        tol=self.cfg.tol  
+                        tol=self.cfg.tol
                     )
                     try:
                         model.fit(X_train)
@@ -75,8 +101,16 @@ class LayeredHMMModel:
 
         return best_model
 
-    def predict_states(self):
-        '''Predict regimes for each layer.'''
+    def predict_states(self) -> None | pd.DataFrame:
+        """
+        Predicts hidden states (regimes) across all layers.
+
+        The input is passed through each layer, and states are predicted and relabeled by volatility.
+        Posterior probabilities from each layer are used as input to the next.
+
+        Returns:
+            pd.DataFrame | None: A DataFrame with regime predictions for each layer, or None if not trained.
+        """
         if not self.models:
             return None
 
@@ -88,15 +122,23 @@ class LayeredHMMModel:
             relabeled_states = self._relabel_states_by_volatility(raw_states, model, current_X)
             all_layer_states[f"regime_layer{idx}"] = relabeled_states
 
-            # For next layer input
             if idx < len(self.models) - 1:
                 current_X = model.predict_proba(current_X)
 
-        # Return as a DataFrame
         return pd.DataFrame(all_layer_states, index=pd.RangeIndex(len(self.X))[-len(relabeled_states):])
 
     def _relabel_states_by_volatility(self, original_states, model, X_layer):
-        '''Relabel states based on volatility: from low volatility (0) to high (n-1).'''
+        """
+        Relabels HMM states in order of increasing volatility.
+
+        Args:
+            original_states (np.ndarray): Predicted state labels from the HMM.
+            model (hmm.GaussianHMM): Trained HMM model.
+            X_layer (np.ndarray): Data used to compute volatility of each state.
+
+        Returns:
+            np.ndarray: Relabeled states with increasing volatility from 0 to n-1.
+        """
         state_vols = []
         for state in range(model.n_components):
             state_obs = X_layer[original_states == state]

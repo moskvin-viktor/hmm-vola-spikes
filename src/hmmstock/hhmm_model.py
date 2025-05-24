@@ -15,11 +15,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 class HierarchicalHMMModel:
-    '''
-    Hierarchical HMM model: top-level HMM decides regime, sub-HMMs model observations inside regimes.
-    '''
+    """
+    Hierarchical Hidden Markov Model (H-HMM).
+
+    This model implements a two-level generative framework where:
+    - A top-level HMM governs transitions between high-level latent regimes.
+    - For each top-level regime, a separate sub-HMM is trained to model local observation dynamics.
+
+    This hierarchical structure allows for greater modeling flexibility in systems exhibiting 
+    regime-dependent or multi-modal behavior, such as in finance, speech, and biosignal processing.
+
+    Parameters
+    ----------
+    name : str
+        Identifier name for the model instance.
+    X : np.ndarray
+        Observation sequence (time series), shape (T, D), where T is the number of time steps 
+        and D is the feature dimensionality.
+    config : object
+        Configuration object with hyperparameters for both the top and sub-layer HMMs.
+    evaluation_metric : object
+        Metric object with an `evaluate(model, X)` method to score model performance.
+    """
+    
     def __init__(self, name: str, X: np.ndarray, config, evaluation_metric):
         self.name = name
         self.X = X
@@ -31,8 +50,24 @@ class HierarchicalHMMModel:
         self.path = os.path.join(f"results_{self.name}", "models", f"{self.name}_hierarchical_hmm")
 
     def fit(self, splitter: callable):
-        '''Fit a Hierarchical HMM model.'''
+        """
+        Fit the Hierarchical HMM model.
 
+        This procedure consists of:
+        1. Fitting a top-level HMM to identify high-level regimes.
+        2. Using the top-level state sequence to partition the data.
+        3. Training a sub-HMM on each data partition (i.e., each regime).
+
+        Parameters
+        ----------
+        splitter : callable
+            A function that splits `X` into (train, validation) sets for model selection.
+        
+        Returns
+        -------
+        model : hmm.GaussianHMM or None
+            The trained top-level HMM. Returns None if training fails.
+        """
         if len(self.X) < 20:
             logger.warning(f"[{self.name}] Not enough data to train")
             return None
@@ -40,7 +75,6 @@ class HierarchicalHMMModel:
         np.random.seed(self.cfg.random_seed)
         X_train, X_validate = splitter(self.X)
 
-        # 1. Fit the top-level HMM
         logger.info(f"[{self.name}] Training Top-level HMM")
         best_score = -np.inf
         best_top_model = None
@@ -69,11 +103,8 @@ class HierarchicalHMMModel:
             return None
 
         self.top_model = best_top_model
-
-        # 2. Assign data points to top-level states
         top_states = self.top_model.predict(self.X)
 
-        # 3. Train sub-HMMs for each top-level state
         for top_state in np.unique(top_states):
             logger.info(f"[{self.name}] Training Sub-HMM for Top State {top_state}")
             sub_X = self.X[top_states == top_state]
@@ -112,7 +143,17 @@ class HierarchicalHMMModel:
         return self.top_model
 
     def predict_states(self):
-        '''Predict top-level and sub-level regimes.'''
+        """
+        Predict hierarchical state sequences for the observed data.
+
+        Returns
+        -------
+        states_df : pd.DataFrame or None
+            A DataFrame containing:
+            - 'top_level_state': the sequence of top-level regimes.
+            - 'sub_level_state': the sequence of sub-level hidden states corresponding to each time step.
+            Returns None if the model is not trained or incomplete.
+        """
         if self.top_model is None or not self.sub_models:
             return None
 
@@ -122,11 +163,9 @@ class HierarchicalHMMModel:
 
         for idx, top_state in enumerate(top_states):
             sub_model = self.sub_models.get(top_state)
-
             if sub_model is None:
-                sub_states.append(np.nan)  # If no submodel available, fill with NaN
+                sub_states.append(np.nan)
             else:
-                # Predict based on each individual observation
                 obs = self.X[idx:idx+1]
                 sub_state = sub_model.predict(obs)[0]
                 sub_states.append(sub_state)

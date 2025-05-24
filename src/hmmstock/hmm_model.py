@@ -28,7 +28,7 @@ class HMMModel:
         self.model = None
         self.is_layered = False
 
-    def fit(self, splitter : callable):
+    def fit(self, splitter : callable) -> None | hmm.GaussianHMM:
         '''Fit the HMM model to the data using the specified splitter and number of fits.
         The configuration is used to set the number of components, covariance type, and other parameters.
         The function will return the best model based on the evaluation metric.
