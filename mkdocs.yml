@@ -3,6 +3,7 @@ nav:
   - Home: index.md
   - Data: data.md
   - Models: model.md
+  - Visualization: visualization.md
 theme: readthedocs
 use_directory_urls: false
 plugins:

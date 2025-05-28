@@ -1,6 +1,30 @@
 # Model 
 
-## At a glance Hidden Markov Model
+
+- [Hidden Markov Model at a glance](#hidden-markov-model-at-a-glance)
+- [Hidden Markov Model](#hidden-markov-model)
+  - [Hyperparameters](#hyperparameters)
+  - [Iterative Fitting](#iterative-fitting)
+  - [Output](#output)
+  - [Code](#code)
+- [Layered Hidden Markov Model](#layered-hidden-markov-model)
+  - [Overview](#overview)
+  - [Use Cases](#use-cases)
+  - [Hyperparameters](#hyperparameters-1)
+  - [Limitations](#limitations)
+  - [Output](#output-1)
+- [Hierarchical Hidden Markov Model](#hierarchical-hidden-markov-model)
+  - [Overview](#overview-1)
+  - [Advantages](#advantages)
+  - [Code](#code-1)
+- [Evaluation Metric: Log-Likelihood with Entropy Regularization](#evaluation-metric-log-likelihood-with-entropy-regularization)
+  - [Overview](#overview-2)
+  - [Formula](#formula)
+  - [Purpose](#purpose)
+  - [Code](#code-2)
+- [References](#references)
+
+## Hidden Markov Model at a glance
 
 A **Hidden Markov Model (HMM)** is a statistical model that assumes the system being modeled is a Markov process with unobserved (hidden) states. It is particularly well-suited for time-series data where the true state of the system is not directly observable but can be inferred through observed signals.
 
@@ -26,6 +50,10 @@ HMMs are commonly used in:
 
 This implementation leverages the `hmmlearn` library to train a Gaussian HMM on financial volatility features. Layered variants extend the base HMM by stacking multiple models, where each layer learns patterns from the probabilistic output of the previous layer, enabling more expressive and hierarchical regime detection.
 
+![An HMM for centered returns. Each of the hidden states takes values
+in ${1, ..., M}$. Each of the emission probabilities is based on a mean zero Normal
+distribution with variance depending on the corresponding hidden state $q_t$](images/hmm.png "Figure 1")
+
 ## Hidden Markov Model 
 
 The `HMMModel` is a probabilistic time series model built using a **Gaussian Hidden Markov Model (HMM)**. It is suitable for modeling **regime-switching behavior**, such as different volatility regimes in financial markets. This implementation leverages the `hmmlearn` library and is designed for use on multivariate time series data.
@@ -34,7 +62,7 @@ A **Hidden Markov Model** consists of:
 
 - **Hidden States**: Unobservable regimes (e.g., low, medium, high volatility).
 
-- **Observations**: Observable data (e.g., volatility of returns).
+- **Observations**: Observable data (e.g., volatility of returns and VIX as proxy).
 
 - **Transition Probabilities**: Probabilities of switching between states.
 
@@ -64,6 +92,8 @@ The model supports the following hyperparameters through the configuration objec
 | `max_components`   | `int`   | Maximum number of hidden states (components) to try. Minimum is 2.          |
 
 
+The full list of parameters can be found here [hmmlearn](https://hmmlearn.readthedocs.io/en/latest/api.html#hmmlearn.hmm.GaussianHMM). 
+
 ### Iterative Fitting
 
 The model is trained using the Expectation-Maximization (EM) algorithm:
@@ -89,6 +119,8 @@ The model can output:
 
 ## Layered Hidden Markov Model 
 
+![A Layered Hidden Markov Model](images/lhmm.png "Figure 1")
+
 ### Overview
 
 `LayeredHMMModel` is an extension of traditional Hidden Markov Models (HMMs) that allows for **layered (hierarchical) modeling of temporal regimes**. Each layer is trained sequentially:
@@ -105,11 +137,11 @@ This design enables the model to **capture increasingly abstract temporal struct
 
 ### Use Cases
 
-- Capturing hierarchical or multi-scale regimes in financial time series
-
-- Improving regime separation through feature transformation between layers
-
 - Modeling complex temporal dependencies and latent dynamics
+
+- Thus we can understand not only the regimes of the volatility, but also the regimes of the regimes of the volatility. We can allow more layered structure and thus abstract the potential noise of the primary volatiltiy layer by substitung it with the **posterior probabilities**.
+
+- We can hope to achieve the better separation of the regimes.
 
 
 ### Hyperparameters 
@@ -148,14 +180,6 @@ General parameters inherited from the global config:
 | `random_seed` | Ensures reproducibility                               |
 
 
-### Advantages of Layered HMMs
-
-- **Hierarchical abstraction**: Later layers learn abstract temporal structures
-- **Noise reduction**: Intermediate posterior probabilities can be smoother than raw features
-- **Better separation**: Progressive modeling can separate regimes more clearly
-
-
-
 ### Limitations
 
 - **Computational cost**: Training multiple HMMs in sequence is resource-intensive
@@ -173,6 +197,9 @@ General parameters inherited from the global config:
 ::: hmmstock.LayeredHMMModel
 
 ## Hierarchical Hidden Markov Model
+
+
+![A Hierarchical Hidden Markov Model](images/hhmm.png "Figure 1")
 
 
 ### Overview 
@@ -203,17 +230,49 @@ Where:
 - Especially useful when different segments of the data exhibit qualitatively different behaviors.
 
 
-## References
+### Code
 
-- Rabiner, L. R. (1989). *A Tutorial on Hidden Markov Models and Selected Applications in Speech Recognition*. Proceedings of the IEEE.
-- `hmmlearn` documentation: [https://hmmlearn.readthedocs.io/](https://hmmlearn.readthedocs.io/)
+::: hmmstock.LayeredHMMModel
 
-An introduction to the use of hidden Markov
-models for stock return analysis
-Chun Yu Hong∗
-, Yannik Pitcan†
+# Metric
 
-Hidden Markov Models Fundamentals
-Daniel Ramage
-CS229 Section Notes
-December 1, 2007
+##  Evaluation Metric: Log-Likelihood with Entropy Regularization
+
+### Overview
+
+The `LogLikelihoodWithEntropy` metric extends the standard log-likelihood scoring of HMMs by incorporating a regularization term based on the **entropy** of the hidden state distribution. This encourages the model to make use of all available states more evenly, thus avoiding degenerate solutions where only a few states dominate.
+
+### 10 Formula
+
+
+- \( \mathcal{L} = \log P(X \mid \theta) \): the log-likelihood of the validation data \( X \) under model parameters \( \theta \)
+- \( \mathbf{p} = [p_1, p_2, \ldots, p_K] \): the empirical distribution of predicted states
+- \( H(\mathbf{p}) = -\sum_{k=1}^K p_k \log(p_k + \epsilon) \): the entropy of the state distribution (with a small constant \( \epsilon \) to avoid log(0))
+- \( \lambda \): the entropy regularization weight (configurable, default is 3)
+
+The total evaluation score is:
+
+$$
+\text{Score} = \mathcal{L} + \lambda \cdot H(\mathbf{p})
+$$
+
+### Purpose
+
+- **Encourages State Usage**: Models that evenly distribute probability mass across states receive higher entropy, and thus higher total score.
+- **Combats Overfitting**: Prevents models from collapsing into trivial solutions with few active states.
+- **Tunable Regularization**: The impact of entropy is controlled via the `entropy_weight` hyperparameter in the configuration file.
+
+
+### Code
+
+::: hmmstock.LogLikelihoodWithEntropy
+
+# References
+
+- Rabiner, L. R. (1989). *A Tutorial on Hidden Markov Models and Selected Applications in Speech Recognition*. *Proceedings of the IEEE*, 77(2), 257–286.
+
+- `hmmlearn` Documentation. Available at: [https://hmmlearn.readthedocs.io/](https://hmmlearn.readthedocs.io/)
+
+- Hong, C. Y., & Pitcan, Y. *An Introduction to the Use of Hidden Markov Models for Stock Return Analysis*. (Unpublished manuscript).
+
+- Ramage, D. (2007). *Hidden Markov Models Fundamentals*. *CS229 Section Notes*, Stanford University, December 1, 2007.
