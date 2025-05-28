@@ -3,16 +3,14 @@ from dash import dcc, html, Input, Output
 import plotly.io as pio
 from hmmstock.plots.plot_results import HMMResultVisualization
 from omegaconf import OmegaConf
-import pandas as pd
 import os
-from dash.html import Div
 
 # Set Plotly theme to dark
 pio.templates.default = "plotly_dark"
 
 # Available tickers and models
 AVAILABLE_TICKERS = ['AAPL', 'MSFT', 'GSPC', 'AMZN']
-AVAILABLE_MODELS = ['HMMModel', 'LayeredHMMModel', 'HierarchicalHMMModel']  # Later you can add e.g., 'HSMMModel'
+AVAILABLE_MODELS = ['HMMModel', 'LayeredHMMModel', 'HierarchicalHMMModel']
 
 # Load config
 config_plots = OmegaConf.load("../config/visualization_config.yaml")
@@ -33,7 +31,6 @@ descriptions = {
     "distribution": "### Regimes vs Volatility\nThis plot overlays regime states with selected volatility measures (e.g., VIX). Useful for understanding how regimes relate to market stress.", 
 }
 
-
 # Layout helper
 def section(title, figure, description_md):
     return html.Div(style={
@@ -47,7 +44,6 @@ def section(title, figure, description_md):
         dcc.Markdown(description_md, style={"color": "#dddddd", "marginBottom": "1rem"}),
         dcc.Graph(figure=figure, style={"height": "600px"})
     ])
-
 
 # App layout
 app.layout = html.Div(style={"backgroundColor": "#1e1e1e", "padding": "2rem"}, children=[
@@ -71,17 +67,29 @@ app.layout = html.Div(style={"backgroundColor": "#1e1e1e", "padding": "2rem"}, c
             style={"width": "300px", "color": "#000"}
         )
     ], style={"display": "flex", "justifyContent": "center", "alignItems": "center", "marginBottom": "2rem", "gap": "1rem"}),
+
     html.Label("Select Layer:", id="layer-label", style={"color": "white", "fontWeight": "bold", "marginLeft": "2rem", "marginRight": "1rem", "display": "none"}),
     dcc.Dropdown(
         id='layer-dropdown',
-        options=[],  # dynamically set
+        options=[],
         value=None,
         clearable=False,
         style={"width": "200px", "color": "#000", "display": "none"}
     ),
 
-    html.Div(id='plots-container')
+    dcc.Tabs(
+        id='tabs',
+        value='plots',
+        children=[
+            dcc.Tab(label='Plots', value='plots', style={"backgroundColor": "#1e1e1e", "color": "#fff"}),
+            dcc.Tab(label='Findings', value='findings', style={"backgroundColor": "#1e1e1e", "color": "#fff"}),
+        ],
+        style={"marginBottom": "2rem"},
+    ),
+
+    html.Div(id='tab-content')
 ])
+
 @app.callback(
     Output('layer-dropdown', 'style'),
     Output('layer-label', 'style'),
@@ -111,17 +119,10 @@ def toggle_layer_dropdown(model_name):
 
     return dropdown_style, label_style, options, value
 
-@app.callback(
-    Output('plots-container', 'children'),
-    Input('model-dropdown', 'value'),
-    Input('ticker-dropdown', 'value'),
-    Input('layer-dropdown', 'value')  # NEW
-)
-def update_plots(selected_model, selected_ticker, selected_layer) -> list[Div]:
-    # Construct file paths dynamically
+def update_plots(selected_model, selected_ticker, selected_layer):
     vis = HMMResultVisualization(selected_model, selected_ticker, config_plots)
 
-    if selected_model == 'LayeredHMMModel' or selected_model == 'HierarchicalHMMModel':
+    if selected_model in ['LayeredHMMModel', 'HierarchicalHMMModel']:
         return [
             section("Feature Means per Regime", vis.plot_feature_means(layer=selected_layer), descriptions["means"]),
             section("HMM Transition Matrix", vis.plot_transition_matrix(layer=selected_layer), descriptions["transition"]),
@@ -140,7 +141,26 @@ def update_plots(selected_model, selected_ticker, selected_layer) -> list[Div]:
             section("HMM States Correlations", vis.plot_state_volatility_correlations(), descriptions["correlations"]),
         ]
 
-
+@app.callback(
+    Output('tab-content', 'children'),
+    Input('tabs', 'value'),
+    Input('model-dropdown', 'value'),
+    Input('ticker-dropdown', 'value'),
+    Input('layer-dropdown', 'value'),
+)
+def render_tab(tab, selected_model, selected_ticker, selected_layer):
+    if tab == 'plots':
+        return update_plots(selected_model, selected_ticker, selected_layer)
+    elif tab == 'findings':
+        filename = f"markdown/findings_{selected_model}.md"
+        try:
+            with open(filename, "r") as f:
+                markdown_text = f.read()
+        except FileNotFoundError:
+            markdown_text = f"### Findings file not found for {selected_model}"
+        return html.Div([
+            dcc.Markdown(markdown_text, style={"color": "#dddddd", "backgroundColor": "#2b2b2b", "padding": "2rem", "borderRadius": "12px"})
+        ])
 
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=8050)
