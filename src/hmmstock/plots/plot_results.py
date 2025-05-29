@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from hmmstock.path_manager import PathManager  # adjust import to your structure
+from hmmstock.stat_testing import test_returns_anova  # adjust import to your structure
 import logging
 class HMMResultVisualization:
     def __init__(self, model_name: str, ticker: str, config: dict, base_dir  = None):
@@ -336,5 +337,36 @@ class HMMResultVisualization:
     def available_layer_indices(self):
         """Return the list of detected available layers."""
         return self.available_layers
+    
+    def report_anova_test_on_returns(self, layer=0) -> str:
+        """
+        Report ANOVA p-value for normalized_returns across regime states for a specific layer.
+        
+        Args:
+            layer: The regime layer to analyze (default=0)
+
+        Returns:
+            A formatted string summarizing the p-value and its interpretation.
+        """
+        state_col = self.get_state_column(layer)
+
+        if 'normalized_returns' not in self.df.columns:
+            return "The 'normalized_returns' column is missing in the data."
+
+        try:
+            p_value = test_returns_anova(self.df, state_col)
+        except Exception as e:
+            return f"ANOVA test failed: {e}"
+
+        if p_value < 0.01:
+            interpretation = "Highly significant differences between regime return means (p < 0.01)."
+        elif p_value < 0.05:
+            interpretation = "Statistically significant differences between regime return means (p < 0.05)."
+        elif p_value < 0.1:
+            interpretation = "Weak evidence of differences in regime return means (p < 0.1)."
+        else:
+            interpretation = "No significant differences found between regime return means."
+
+        return f"ANOVA p-value for returns across regimes (Layer {layer}): {p_value:.4f}\n{interpretation}"
     
 
