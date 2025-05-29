@@ -22,6 +22,7 @@ app.title = "HMM Regime Viewer"
 
 # Markdown descriptions
 descriptions = {
+    "means_returns": "### Normalized Returns per Regime\nThis histogram shows the distribution of normalized returns for each regime identified by the HMM. It helps visualize how returns vary across different market states.",
     "means": "### Feature Means per Regime\nThis bar chart shows the average value of each feature within each HMM-identified regime. It helps interpret what characterizes each market regime.",
     "transition": "### HMM Transition Matrix\nThis heatmap visualizes the probability of switching from one regime to another. Diagonal values represent self-persistence; higher values indicate more stable regimes.",
     "returns": "### Normalized Returns by Regime\nThis line plot shows stock returns over time, color-coded by the regime assigned by the HMM. It reveals how regimes align with price movement.",
@@ -121,9 +122,10 @@ def toggle_layer_dropdown(model_name):
 
 def update_plots(selected_model, selected_ticker, selected_layer):
     vis = HMMResultVisualization(selected_model, selected_ticker, config_plots)
-
+    #plot_normalized_return_means
     if selected_model in ['LayeredHMMModel', 'HierarchicalHMMModel']:
         return [
+            section("Normalized Returns per Regime", vis.plot_normalized_return_means(layer=selected_layer), descriptions["means_returns"]),
             section("Feature Means per Regime", vis.plot_feature_means(layer=selected_layer), descriptions["means"]),
             section("HMM Transition Matrix", vis.plot_transition_matrix(layer=selected_layer), descriptions["transition"]),
             section("Normalized Returns by Regime", vis.plot_time_series_by_regime(layer=selected_layer), descriptions["returns"]),
@@ -133,6 +135,7 @@ def update_plots(selected_model, selected_ticker, selected_layer):
         ]
     else:
         return [
+            section("Normalized Returns per Regime", vis.plot_normalized_return_means(), descriptions["means_returns"]),
             section("Feature Means per Regime", vis.plot_feature_means(), descriptions["means"]),
             section("HMM Transition Matrix", vis.plot_transition_matrix(), descriptions["transition"]),
             section("Normalized Returns by Regime", vis.plot_time_series_by_regime(), descriptions["returns"]),

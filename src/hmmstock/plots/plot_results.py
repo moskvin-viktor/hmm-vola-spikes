@@ -68,15 +68,40 @@ class HMMResultVisualization:
         if isinstance(layer, str):
             return layer
         return f'regime_layer{layer}'
+    
+    def plot_normalized_return_means(self, layer=0) -> go.Figure:
+        """Plot the mean of normalized_returns grouped by regime states."""
+        state_col = self.get_state_column(layer)
+
+        if 'normalized_returns' not in self.df.columns:
+            raise ValueError("'normalized_returns' column is missing in the data.")
+
+        grouped_means = self.df.groupby(state_col)['normalized_returns'].mean().reset_index()
+
+        fig = px.bar(
+            grouped_means,
+            x=state_col,
+            y='normalized_returns',
+            title=f'Normalized Returns Mean per Regime (Layer {layer})',
+            labels={'normalized_returns': 'Mean Normalized Return', state_col: 'Regime'},
+        )
+        fig.update_layout(xaxis_title='Regime', yaxis_title='Mean Normalized Return')
+        return fig
 
     def plot_feature_means(self, layer=0) -> go.Figure:
+        """Plot mean values of features (excluding normalized_returns) grouped by regime states."""
         state_col = self.get_state_column(layer)
-        grouped_means = self.df.groupby(state_col).mean()
+
+        # Exclude normalized_returns
+        numeric_cols = self.df.select_dtypes(include='number').columns
+        feature_cols = [col for col in numeric_cols if col not in {state_col, 'normalized_returns'}]
+
+        grouped_means = self.df.groupby(state_col)[feature_cols].mean()
 
         fig = px.bar(
             grouped_means.transpose(),
             barmode=self.config['mean_barplot']['barmode'],
-            title=f'Feature Means per Regime (Layer {layer})',
+            title=f'Feature Means per Regime (Layer {layer}) — Excluding Normalized Returns',
             labels={'value': 'Mean Value', 'index': 'Feature'},
         )
         fig.update_layout(xaxis_title='Feature', yaxis_title='Mean')
