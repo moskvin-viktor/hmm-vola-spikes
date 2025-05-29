@@ -27,6 +27,7 @@ class HMMModel:
         self.evaluation_metric = evaluation_metric
         self.model = None
         self.is_layered = False
+        self.best_score = -np.inf
 
     def fit(self, splitter : callable) -> None | hmm.GaussianHMM:
         '''Fit the HMM model to the data using the specified splitter and number of fits.
@@ -61,7 +62,8 @@ class HMMModel:
                         best_overall_score = base_score
                 except Exception as e:
                     logger.warning(f"[{self.name}] HMM training failed with {n_components} components: {e}")
-
+        if best_overall_score > self.best_score:
+            self.best_score = best_overall_score
         self.model = best_model
         return best_model
 

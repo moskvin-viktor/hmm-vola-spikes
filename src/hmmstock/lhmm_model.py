@@ -14,7 +14,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
+from pathlib import Path
 
 class LayeredHMMModel:
     """
@@ -45,6 +45,7 @@ class LayeredHMMModel:
         self.evaluation_metric = evaluation_metric
         self.models = []
         self.is_layered = True
+        self.best_score = -np.inf  # <-- Added attribute
         self.path = os.path.join(f"results_{self.name}", "models", f"{self.name}_layered_hmm")
 
     def fit(self, splitter: callable) -> None | hmm.GaussianHMM:
@@ -95,6 +96,9 @@ class LayeredHMMModel:
             if best_model is None:
                 logger.error(f"[{self.name}] No model could be trained for Layer {layer_idx+1}")
                 return None
+            
+            if best_overall_score > self.best_score:
+                self.best_score = best_overall_score
 
             self.models.append(best_model)
             current_X = best_model.predict_proba(current_X)

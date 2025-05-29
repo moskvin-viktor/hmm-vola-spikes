@@ -46,8 +46,10 @@ class HierarchicalHMMModel:
         self.evaluation_metric = evaluation_metric
         self.top_model = None
         self.sub_models = {}
-        self.is_layered = False
+        self.is_layered = True
         self.path = os.path.join(f"results_{self.name}", "models", f"{self.name}_hierarchical_hmm")
+        self.models = []
+        self.best_score = -np.inf
 
     def fit(self, splitter: callable):
         """
@@ -139,7 +141,15 @@ class HierarchicalHMMModel:
                 self.sub_models[top_state] = best_sub_model
             else:
                 logger.error(f"[{self.name}] No Sub-HMM could be trained for Top State {top_state}")
+        
+        if best_sub_model:
+                self.sub_models[top_state] = best_sub_model
+                if best_sub_score > self.best_score:
+                    self.best_score = best_sub_score
+        else:
+            logger.error(f"[{self.name}] No Sub-HMM could be trained for Top State {top_state}")
 
+        self.models.append(self.top_model)
         return self.top_model
 
     def predict_states(self):

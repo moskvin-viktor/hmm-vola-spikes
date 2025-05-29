@@ -9,7 +9,6 @@ import logging
 import os
 import joblib
 from .hmm_model import HMMModel
-from typing import Dict, Type
 # Set up logging
 logging_dir = "results/logs"
 os.makedirs(logging_dir, exist_ok=True)
@@ -33,9 +32,9 @@ class RegimeModelManager:
     The class is designed to work with a dictionary of dataframes, where each dataframe corresponds to a ticker.
     The class also provides methods to compute transition matrices and expected steps before state changes.
     '''
-    def __init__(self, data_dict: Dict[str, pd.DataFrame], config_path: str,
+    def __init__(self, data_dict: dict[str, pd.DataFrame], config_path: str,
                  evaluation_metric=None, train_test_splitter=None,
-                 model_class: Type[HMMModel] = HMMModel):
+                 model_class: type[HMMModel] = HMMModel):
         self.cfg = OmegaConf.load(config_path)
 
         self.data_dict = {sanitize_ticker(ticker): df for ticker, df in data_dict.items()}
@@ -46,9 +45,9 @@ class RegimeModelManager:
         self.model_class = model_class
         self.name = self.model_class.__name__
 
-        self.models: Dict[str, HMMModel] = {}
-        self.states: Dict[str, np.ndarray] = {}
-        self.state_labeled_data: Dict[str, pd.DataFrame] = {}
+        self.models: dict[str, HMMModel] = {}
+        self.states: dict[str, np.ndarray] = {}
+        self.state_labeled_data: dict[str, pd.DataFrame] = {}
 
         self.model_name = self.model_class.__name__
         self.results_dir = Path(f"results/{self.model_name}")
@@ -62,29 +61,42 @@ class RegimeModelManager:
             folder.mkdir(parents=True, exist_ok=True)
 
     def train_all(self):
-        """Train model for all tickers."""
-        for ticker, df in self.data_dict.items():
-            original_ticker = self.original_ticker_map[ticker]
+        """Train or load HMM models for all tickers."""
+        model_path = self.saved_models_dir
+        self.load_model(model_path)
+        if self.models:
+            logger.info(f"Loaded saved models for {len(self.models)} tickers.")
+            for ticker, model in self.models.items():
+                original_ticker = self.original_ticker_map[ticker]
+                self.states[ticker] = model.predict_states()
+                
+        else:
+            for ticker, df in self.data_dict.items():
+                original_ticker = self.original_ticker_map[ticker]
+                
 
-            X = df.to_numpy()
-            model_instance = self.model_class(ticker, X, self.cfg[self.model_name], self.evaluation_metric)
+                X = df.to_numpy()
+                model = self.model_class(ticker, X, self.cfg[self.model_name], self.evaluation_metric)
+                fitted_model = model.fit(self.splitter)
 
-            fitted_model = model_instance.fit(self.splitter)
-            self.models[ticker] = model_instance
+                if not fitted_model:
+                    logger.warning(f"No model fitted for {original_ticker} due to insufficient data or errors.")
+                    continue
 
-            if fitted_model:
-                self.states[ticker] = model_instance.predict_states()
                 logger.info(f"Training completed for {original_ticker} with {fitted_model.n_components} components.")
 
-                # Save model
-                model_save_path = self.saved_models_dir / ticker
-                self.save_model(model_save_path)
-            else:
-                logger.warning(f"No model fitted for {original_ticker} due to insufficient data or errors.")
+                # Register model and states
+                self.models[ticker] = model
+                self.states[ticker] = model.predict_states()
 
+        self.save_model(model_path)
         self.generate_state_labeled_data()
 
-    def _get_states(self) -> Dict[str, pd.DataFrame]:
+        # Compute transition matrices for all tickers
+        for ticker in self.data_dict:
+            self.get_transition_matrix(ticker)
+
+    def _get_states(self) -> dict[str, pd.DataFrame]:
         """Get predicted states for all tickers."""
         state_dict = {}
         for ticker, model_instance in self.models.items():
@@ -174,20 +186,11 @@ class RegimeModelManager:
         """Save model(s) to the specified path."""
         path.mkdir(parents=True, exist_ok=True)
 
-        if getattr(self, "is_layered", True):
-            for idx, model in enumerate(self.models):
-                joblib.dump(model, path / f"{self.name}_layer{idx+1}_hmm.pkl")
-        else:
-            joblib.dump(self.model, path / f"{self.name}_hmm.pkl")
+        joblib.dump(self.models, path / f"{self.name}_hmm.pkl")
 
     def load_model(self, path: Path):
         """Load model(s) from the specified path."""
-        path = Path(path)
-
-        if getattr(self, "is_layered", True):
-            self.models = []
-            for idx in range(self.cfg.num_layers):
-                model = joblib.load(path / f"{self.name}_layer{idx+1}_hmm.pkl")
-                self.models.append(model)
-        else:
-            self.model = joblib.load(path / f"{self.name}_hmm.pkl")
+        try:
+            self.models = joblib.load(path / f"{self.name}_hmm.pkl")
+        except FileNotFoundError:
+            return {}
