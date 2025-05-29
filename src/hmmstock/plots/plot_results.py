@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from hmmstock.path_manager import PathManager  # adjust import to your structure
-
+import logging
 class HMMResultVisualization:
     def __init__(self, model_name: str, ticker: str, config: dict, base_dir  = None):
         """
@@ -35,7 +35,7 @@ class HMMResultVisualization:
         # Try to load multiple layers, fallback to single
         i = 0
         while True:
-            csv_file = self.path_manager.get_ticket_csv_file(
+            csv_file = self.path_manager.get_transition_matrix(
                 self.model_name, self.ticker, f"{self.ticker}_transition_matrix_layer{i}.csv"
             )
             if not csv_file.exists():
@@ -83,9 +83,9 @@ class HMMResultVisualization:
         return fig
 
     def plot_transition_matrix(self, layer=0) -> go.Figure:
-        if not self.transition_dfs or layer not in self.transition_dfs:
-            return go.Figure()
-
+        # if not self.transition_dfs or layer not in self.transition_dfs:
+        #     return go.Figure()
+        logging.info(self.transition_dfs[layer])
         transition_df = self.transition_dfs[layer]
 
         fig = go.Figure(data=go.Heatmap(
