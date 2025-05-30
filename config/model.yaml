@@ -18,11 +18,11 @@ LayeredHMMModel:
   tol: 1e-4
   layers:
     - min_components: 2
-      max_components: 3
+      max_components: 5
       covariance_type: "full"
       init_params: "stmc"
     - min_components: 2
-      max_components: 2
+      max_components: 3
       covariance_type: "full"
       init_params: "stmc"
 

@@ -69,6 +69,7 @@ class RegimeModelManager:
             for ticker, model in self.models.items():
                 original_ticker = self.original_ticker_map[ticker]
                 self.states[ticker] = model.predict_states()
+                print(f"{model.best_score} for {self.model_name} and {ticker}.")
                 
         else:
             for ticker, df in self.data_dict.items():
@@ -88,7 +89,8 @@ class RegimeModelManager:
                 # Register model and states
                 self.models[ticker] = model
                 self.states[ticker] = model.predict_states()
-
+                print(f"Trained models for {len(self.models)} tickers.")
+                print(f"{model.best_score} for {self.model_name} model.")
         self.save_model(model_path)
         self.generate_state_labeled_data()
 
@@ -145,7 +147,7 @@ class RegimeModelManager:
             logger.warning(f"No model found for {self.original_ticker_map.get(ticker, ticker)}.")
             return
 
-        models = model_instance.models if getattr(model_instance, "is_layered", False) else [model_instance.model]
+        models = model_instance.models if getattr(model_instance, "is_layered", True) else [model_instance.model]
 
         if not models or any(m is None for m in models):
             logger.warning(f"No model(s) available for {self.original_ticker_map.get(ticker, ticker)}.")

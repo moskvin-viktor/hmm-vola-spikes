@@ -47,10 +47,11 @@ class LayeredHMMModel:
         self.is_layered = True
         self.best_score = -np.inf  # <-- Added attribute
         self.path = os.path.join(f"results_{self.name}", "models", f"{self.name}_layered_hmm")
-
+    
     def fit(self, splitter: callable) -> None | hmm.GaussianHMM:
         """
-        Trains a sequence of HMM models, each on the posterior probabilities of the previous layer.
+        Trains a sequence of HMM models, each using the original input features
+        plus the posterior probabilities from the previous layer.
 
         Args:
             splitter (callable): A function that splits data into training and validation sets.
@@ -62,7 +63,8 @@ class LayeredHMMModel:
             logger.warning(f"[{self.name}] Not enough data to train")
             return None
 
-        current_X = self.X
+        original_X = self.X.copy()
+        current_X = original_X
         np.random.seed(self.cfg.random_seed)
 
         for layer_idx in range(self.cfg.num_layers):
@@ -96,12 +98,15 @@ class LayeredHMMModel:
             if best_model is None:
                 logger.error(f"[{self.name}] No model could be trained for Layer {layer_idx+1}")
                 return None
-            
+
             if best_overall_score > self.best_score:
                 self.best_score = best_overall_score
 
             self.models.append(best_model)
-            current_X = best_model.predict_proba(current_X)
+
+            # Update current_X for next layer: combine original_X with regime probabilities
+            posterior = best_model.predict_proba(current_X)
+            current_X = np.hstack([original_X, posterior])
 
         return best_model
 
@@ -109,16 +114,14 @@ class LayeredHMMModel:
         """
         Predicts hidden states (regimes) across all layers.
 
-        The input is passed through each layer, and states are predicted and relabeled by volatility.
-        Posterior probabilities from each layer are used as input to the next.
-
         Returns:
-            pd.DataFrame | None: A DataFrame with regime predictions for each layer, or None if not trained.
+            pd.DataFrame | None: Regime predictions for each layer.
         """
         if not self.models:
             return None
 
-        current_X = self.X
+        original_X = self.X
+        current_X = original_X
         all_layer_states = {}
 
         for idx, model in enumerate(self.models):
@@ -127,7 +130,8 @@ class LayeredHMMModel:
             all_layer_states[f"regime_layer{idx}"] = relabeled_states
 
             if idx < len(self.models) - 1:
-                current_X = model.predict_proba(current_X)
+                posterior = model.predict_proba(current_X)
+                current_X = np.hstack([original_X, posterior])
 
         return pd.DataFrame(all_layer_states, index=pd.RangeIndex(len(self.X))[-len(relabeled_states):])
 
