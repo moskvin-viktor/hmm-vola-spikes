@@ -2,83 +2,66 @@
 
 ## Overview
 
-As expected, **Layer 0** of the Layered HMM behaves **identically to the standard HMM model**, and therefore is **not the focus** of this analysis. The added complexity lies in **Layer 1 (upper level)**, which aims to model higher-order regime structures.
+As expected, **Layer 0** of the Layered HMM behaves identically to the **standard HMM model**, serving as the base regime classifier. The added complexity emerges in **Layer 1**, which attempts to capture **higher-order regime structures** using posterior probabilities from the first layer as new features.
 
-However, the results from Layer 1 raise both **interesting observations** and **methodological concerns**.
+> One natural hypothesis is that increasing the number of components in **Layer 0** could provide a richer regime encoding for Layer 1. However, this appears to **lead to overfitting** and increased noise without delivering clear improvements.
 
----
+### General Observations
 
-## 1. Return vs. Volatility: Still No Statistical Significance
-
-Across tickers, even at the upper layer, there is **no consistent statistical significance** between **returns and volatility regimes**. This suggests that **adding another hierarchical layer does not improve explanatory power** in this dimension.
-
----
-
-## 2. Ticker-Specific Observations
-
-### **AAPL**
-
-- The upper layer reveals **two regimes**, roughly corresponding to **high** and **low volatility** states.
-- Regimes are **sticky**, showing strong self-transition probabilities.
-- **100% volatility quantile capture**, especially effective in **vola20** and **market volatility proxy**.
-- Interpretation: The Layered HMM provides **clean volatility segmentation**, but no new insight beyond the base model.
+- **No significant return–volatility correlation** was observed, with the exception of **AMZN**, which exhibited weak significance — likely due to idiosyncratic structure in its returns.
+- Layer 1 models often **simplify** the structure learned in Layer 0 (e.g., intermediate regimes disappear).
+- The **Layered HMM provides additional structure**, but the **quantitative improvement is marginal**.
+- High **capture rates** of volatility spikes (>95%) remain consistent across layers.
+- Layered HMM regimes tend to be **more stable/sticky**, but not necessarily more **interpretable**.
 
 ---
 
-### **MSFT**
+## AAPL
 
-- Results show **unexpected behavior**:
-  - The model identifies a statistically significant difference in returns across regimes — **a surprising outlier**.
-  - The regime labeled as "low volatility" (Regime 1) captures **all market volatility extremes**, contradicting its own internal metrics.
-  - Fit for **historical volatilities (vola10, vola20)** is **poor**, and the model appears to be **reversed** in logic.
-  - Regimes are **anti-correlated** with **vola20** — counterintuitive.
-
-> ⚠️ Interpretation: These results likely indicate **anomaly or instability** in the training process for MSFT under the Layered HMM structure.
+- **Three regimes**.
+- Regimes are **equally represented** and **sticky**.
+- Nearly **100% volatility spike capture**.
+- Correlations with **vol20** and **market volatility**, though **lower** than base HMM.
+- **No major improvement** in explanatory power compared to base HMM.
 
 ---
 
-### **GSPC**
+## MSFT
 
-- Regime 0: Higher volatility  
-- Regime 1: Lower volatility  
-- No significant return-volatility relationship
-- Poor fit to volatility indicators — **ineffective segmentation**
-
-> Interpretation: The Layered HMM **fails to capture meaningful regimes** for GSPC. It adds complexity without performance gain.
-
----
-
-### **AMZN**
-
-- Regime 0: Higher volatility — **100% volatility capture**
-- Regime 1: Lower volatility — **anti-correlated** with volatility indicators
-- No significance in return segmentation
-- Structure is clear, but again **adds no new explanatory power** beyond Layer 0
+- Again, **only two regimes**; intermediate layer smoothed out.
+- Regimes are **sticky** and equally sized.
+- **Excellent capture rate** for volatility spikes.
+- Correlated primarily with **vol20** and **market volatility**.
+- **Slightly simplified model**, yet improves in **tail capturing**.
+- Possibly a **marginally better fit** than base HMM.
 
 ---
 
-## 3. Model Fit Metric (Lower is Better)
+## GSPC
 
-| Tickers Trained | Layered HMM Model Fit |
-|------------------|-----------------------|
-| 1 Ticker         | 3493.59               |
-| 2 Tickers        | 2517.33               |
-| 3 Tickers        | 1884.79               |
-| 4 Tickers        | 2654.21               |
-| 5 Tickers        | 1576.99               |
-
-> Interpretation: The metric **improves as more tickers are trained**, suggesting some **shared learning**. However, the fit values are **significantly worse than the base HMM model**, particularly on fewer tickers.
+- **Three regimes**.
+- Perfect **volatility spike capture**.
+- Regimes remain **correlated with vol20 and market volatility**.
+- Model **looks nearly identical to base HMM** in behavior.
+- **No added insight** from additional layer.
 
 ---
 
-## 4. Conclusion: Is Layered HMM Worth It?
+## AMZN
 
-While the **Layered HMM adds hierarchical structure**, its **practical benefits appear limited**:
+- **Three regimes**.
+- **Sticky and equal** distribution.
+- Nearly **100% volatility spike capture**.
+- Some correlation with **vol10**, but low with longer horizons.
+- Returns show **weak significance**, possibly due to data structure.
+- Similar performance to base HMM, but **slightly stronger structure** observed.
 
-- For **AAPL and AMZN**, it captures volatility reasonably well, but adds little beyond HMM.
-- For **MSFT and GSPC**, results are **confusing or contradictory**.
-- The **return-volatility relationship remains weak or nonexistent**.
-- Training metrics suggest **high loss values**, raising doubts about stability and generalization.
+---
 
-### ❗ Verdict:
-> The **Layered HMM structure introduces more complexity** but does **not consistently improve interpretability or performance**. In some cases, it leads to **incoherent or misleading regime classification**. Further tuning or alternative hierarchical designs may be required.
+## Final Thoughts
+
+- **Layered HMM introduces architectural depth**, but **does not yield substantial performance gains** in volatility regime modeling.
+- The additional layer **simplifies** regime space rather than enriching it.
+- **Volatility spike detection remains strong**, but interpretability and correlation strength with external factors do not improve noticeably.
+- Possible future direction: experiment with **3-layer structures** or **feature engineering** between layers to prevent over-smoothing.
+- Alternatively, Layered HMM may be better suited for **non-volatility tasks** where **higher-order transitions** are expected to matter more.

@@ -12,8 +12,8 @@ def main():
     model.train_all()
     # model = RegimeModelManager(data_dict=data, config_path="config/model.yaml", model_class=HMMModel)
     # model.train_all()
-    # model = RegimeModelManager(data_dict=data, config_path="config/model.yaml", model_class=HierarchicalHMMModel)
-    # model.train_all()
+    model = RegimeModelManager(data_dict=data, config_path="config/model.yaml", model_class=HierarchicalHMMModel)
+    model.train_all()
 
     # Generate transition matrices and state-labeled data
     # tickers = ['AAPL', 'MSFT', '^GSPC', 'AMZN']
