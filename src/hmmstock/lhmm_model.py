@@ -101,6 +101,7 @@ class LayeredHMMModel:
 
             if best_overall_score > self.best_score:
                 self.best_score = best_overall_score
+                print(f"[{self.name}] Final best score after {self.cfg.num_layers} layer(s): {self.best_score:.4f}")
 
             self.models.append(best_model)
 

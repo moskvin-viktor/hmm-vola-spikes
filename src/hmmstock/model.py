@@ -1,7 +1,7 @@
 from omegaconf import OmegaConf
 import numpy as np
 import pandas as pd
-from .metrics import LogLikelihoodWithEntropy
+from .metrics import LogLikelihoodWithEntropy, BICMetric
 from .data.datamanager import default_split
 from .path_manager import PathManager
 from pathlib import Path    
@@ -90,7 +90,7 @@ class RegimeModelManager:
                 self.models[ticker] = model
                 self.states[ticker] = model.predict_states()
                 print(f"Trained models for {len(self.models)} tickers.")
-                print(f"{model.best_score} for {self.model_name} model.")
+                print(f"{model.best_score} for {self.model_name} model and {ticker}.")
         self.save_model(model_path)
         self.generate_state_labeled_data()
 

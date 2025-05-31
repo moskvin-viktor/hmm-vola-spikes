@@ -9,7 +9,7 @@ HMMModel:
   init_params: "stmc"
   n_fits: 100
   tol: 1e-4
-  max_components: 3
+  max_components: 2
 
 LayeredHMMModel:
   num_layers: 2
@@ -18,11 +18,11 @@ LayeredHMMModel:
   tol: 1e-4
   layers:
     - min_components: 2
-      max_components: 3
+      max_components: 4
       covariance_type: "full"
       init_params: "stmc"
     - min_components: 2
-      max_components: 3
+      max_components: 2
       covariance_type: "full"
       init_params: "stmc"
 
@@ -50,5 +50,5 @@ split:
   shuffle: false
 
 # Evaluation metric
-evaluation_metric: "LogLikelihoodWithEntropy"
-entropy_weight: 15
+evaluation_metric: "BICMetric"
+entropy_weight: 4

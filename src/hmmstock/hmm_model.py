@@ -29,14 +29,12 @@ class HMMModel:
         self.is_layered = False
         self.best_score = -np.inf
 
-    def fit(self, splitter : callable) -> None | hmm.GaussianHMM:
+    def fit(self, splitter: callable) -> None | hmm.GaussianHMM:
         '''Fit the HMM model to the data using the specified splitter and number of fits.
-        The configuration is used to set the number of components, covariance type, and other parameters.
-        The function will return the best model based on the evaluation metric.
-        The function will return None if the model cannot be trained.
-        The function will return the best model if the model is trained successfully.
+        The function returns the best model based on the evaluation metric or None if fitting fails.
         '''
         if len(self.X) < 20:
+            logger.warning(f"[{self.name}] Not enough data to train. Skipping.")
             return None
 
         best_overall_score = -np.inf
@@ -44,6 +42,7 @@ class HMMModel:
 
         X_train, X_validate = splitter(self.X)
         np.random.seed(self.cfg.random_seed)
+
         for n_components in range(2, self.cfg.max_components + 1):
             for idx in range(self.cfg.n_fits):
                 model = hmm.GaussianHMM(
@@ -56,14 +55,34 @@ class HMMModel:
                 )
                 try:
                     model.fit(X_train)
+                    log_likelihood = model.score(X_validate)
+                    states = model.predict(X_validate)
+                    state_counts = np.bincount(states, minlength=model.n_components)
+                    probs = state_counts / state_counts.sum()
+                    entropy = -np.sum(probs * np.log(probs + 1e-10))
+                    normalized_ll = log_likelihood / len(X_validate)
+
                     base_score = self.evaluation_metric.evaluate(model, X_validate)
+
+                    
+
                     if base_score > best_overall_score:
+                        print(
+                            f"[{self.name}] Components: {n_components}, Seed: {idx}, "
+                            f"Norm LL: {normalized_ll:.4f}, Entropy: {entropy:.4f}, "
+                            f"Score: {base_score:.4f}"
+                        )
                         best_model = model
                         best_overall_score = base_score
                 except Exception as e:
-                    logger.warning(f"[{self.name}] HMM training failed with {n_components} components: {e}")
+                    logger.warning(
+                        f"[{self.name}] HMM training failed with {n_components} components "
+                        f"and seed {idx}: {e}"
+                    )
+
         if best_overall_score > self.best_score:
             self.best_score = best_overall_score
+
         self.model = best_model
         return best_model
 
