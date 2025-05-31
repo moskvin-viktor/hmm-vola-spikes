@@ -1,26 +1,42 @@
 # HMM Stock Regime Analysis
 
-This project applies Hidden Markov Models (HMMs) to model and analyze stock market regimes using historical returns and volatility features. It includes data handling, model training, configurable preprocessing, and a dashboard for interactive visualization.
+This project implements and extends Hidden Markov Models (HMMs) to model regime-switching behavior in financial time-series data, particularly for detecting volatility regimes. Below, we outline the theoretical foundations behind standard, layered, and hierarchical HMMs and their role in capturing temporal dynamics.
 
 ---
 
-## Project Structure
+## What is a Hidden Markov Model?
 
-.   
-    ├── app/ # Dash app for interactive visualization 
-    ├── config/ # YAML configuration files for models and plots 
-    ├── data/ # Directory for raw or processed datasets 
-    ├── data_cache/ # Cached data (e.g., from yfinance) 
-    ├── hmm_python39/ # Conda environment setup 
-    ├── results/ # Output files: regime states, transition matrices 
-    ├── src/ # Source code: data loaders, model classes, utilities 
-    ├── environment.yml # Conda environment specification 
-    ├── fit_model.py # Entry point for training HMMs 
-    ├── pyproject.toml # Project metadata and dependencies 
-    ├── README.md # Project readme (this file) 
-    ├── requirements.txt # PIP requirements (alternative to environment.yml) 
+A **Hidden Markov Model (HMM)** is a **probabilistic model** that assumes:
 
----
+- An underlying process (hidden states) evolves over time following a **Markov process**.
+- The system emits **observable signals** (data) which are probabilistically related to the hidden states.
+
+### Key Components
+- **Hidden States (`q_t`)**: Unobservable modes (e.g., "low volatility", "high volatility").
+- **Observations (`x_t`)**: Measurable features (e.g., returns, VIX).
+- **Transition Matrix (`A`)**: Probabilities of switching between states.
+- **Emission Probabilities (`B`)**: Likelihood of observations given a hidden state.
+
+
+## Model Variants in This Project
+
+### 1. Standard Gaussian HMM
+- Single-layer probabilistic model.
+- Captures changes in distribution (mean/variance) across regimes.
+- Implemented using [`hmmlearn`](https://hmmlearn.readthedocs.io/).
+
+### 2. Layered HMM (LHMM)
+- Stacks multiple HMMs in layers.
+- Each layer takes the **posterior state probabilities** from the previous as input.
+- Enhances the ability to learn hierarchical/abstract structure.
+
+### 3. (Planned) Hierarchical HMM (HHMM)
+- Embeds an HMM inside each top-level state.
+- Models **nested dynamics**, such as market phase → sub-regime.
+
+
+## Evaluation: Log-Likelihood with Entropy Regularization
+
 
 ## Features
 
@@ -32,26 +48,13 @@ This project applies Hidden Markov Models (HMMs) to model and analyze stock mark
 
 ## Getting Started
 
-### 1. Set up the environment
+### 1. Set Up the Environment
 
-Install dependencies using either `conda` or `pip`.
+Install dependencies using your preferred Python package manager. All dependencies are listed in `pyproject.toml`.
 
-#### Option A: Conda
+### 2. Train HMM Models
 
-```bash
-conda env create -f environment.yml
-conda activate hmm_env
-```
-
-### Option B: pip
-
-```
-pip install -r requirements.txt
-```
-
-### 2. Train the HMM models
-
-Run the following to process stock data and train models:
+Use the following command to fetch data, compute features, and fit models:
 
 ```bash
 python fit_model.py
@@ -75,3 +78,5 @@ python app/app.py
 ```
 
 Then open http://127.0.0.1:8050/ in your browser.
+
+4. Alternatively, you can check up the ``doc`` folder for the theoretical insights.

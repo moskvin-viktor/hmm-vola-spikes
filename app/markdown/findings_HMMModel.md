@@ -5,76 +5,82 @@
 The model identifies **three distinct volatility regimes** across all tickers:
 
 - **Regime 0**: Low volatility  
-- **Regime 1**: Moderate (average) volatility  
-- **Regime 2**: High volatility  
+- **Regime 1**: Moderate to high volatility  
 
-These regimes align well with the behavior of common volatility indicators across time.
+These regimes correspond well with the evolution of common volatility indicators over time.
 
 ---
 
 ## 2. Returns vs. Volatility
 
-Although visual inspection suggests a **negative correlation between volatility and returns**, the **ANOVA test** results indicate that these differences **are not statistically significant** across regimes for any ticker. This implies that the perceived relationship may be an illusion due to randomness or sample noise, rather than a robust pattern.
+While visual inspection suggests a **negative correlation between volatility and returns**, the **ANOVA test results** indicate that these differences are **not statistically significant** across regimes for any ticker.
+
+> This implies the perceived relationship may be driven by randomness or sample noise, rather than a consistent structural pattern.
+
+It may also be attributed to **limited sample sizes**: periods of high volatility may coincide with lower returns, but not frequently enough to yield statistical significance.
 
 ---
 
 ## 3. Transition Matrix Interpretation
 
-The **transition matrices** reveal that all regimes are **relatively sticky** — meaning:
+The **transition matrices** show that all regimes are **highly persistent**:
 
-> Once the model enters a regime, there's a high probability it stays there for some time before transitioning.  
+> Once a regime is entered, the model assigns a **high probability of staying** in that regime for several time steps.
 
-This is consistently observed across all tickers:
+This stickiness is consistent across all evaluated tickers:
 
-- **AAPL, MSFT, GSPC, AMZN**: All show strong self-transition probabilities, indicating **stable regime persistence** over time.
+- **AAPL, MSFT, GSPC, AMZN**: Exhibit **strong self-transition probabilities**, implying stable regime durations.
 
 ---
 
 ## 4. Volatility Capture by Regimes
 
-The model's ability to capture volatility quantiles varies across tickers:
+The model's regime classification captures distinct volatility quantiles with varying strength across tickers:
 
 - **AAPL**:  
-  - Strong performance.  
-  - Regime 2 captures nearly all of **vola10**, **vola20**, and over **95%** of the **market volatility proxy**.
+  - Strong performance with excellent separation across regimes.  
 
 - **MSFT**:  
-  - Moderate performance.  
-  - **vola20** is undercaptured (~65%), but **100%** of market volatility is captured.  
-  - Overall, effective regime-volatility alignment.
+  - Clear and consistent regime boundaries.  
 
 - **GSPC**:  
-  - Excellent regime separation.  
-  - **Regime 2** captures **100%** of volatility signals.  
-  - Other regimes display **below-average normalized volatilities** (i.e., < 0), showing clear volatility contrasts.
+  - Well-defined volatility regimes.  
 
 - **AMZN**:  
-  - Very effective.  
-  - **Regime 2** captures >90% of all volatility indicators.  
-  - Other regimes also have mean normalized volatilities below zero.
+  - Good performance, but less consistent when using market volatility as a proxy.
 
 ---
 
-## 5. Regime Correlations with Volatility Metrics
+## 5. Regime Quality Metrics
 
-Each ticker shows unique correlations between its regimes and specific volatility indicators:
+These metrics assess the quality of regime modeling, balancing entropy and log-likelihood (lower score = better):
 
-- **AAPL**: Regimes correlate most strongly with **vola20**.
-- **MSFT**: Regimes align closely with **market volatility**.
-- **GSPC**: Similar to MSFT, the model captures **market-level volatility** effectively.
-- **AMZN**: Strongest regime association with **vola10**.
+| Ticker | Best Seed | Entropy | Normalized LL | Score   |
+|--------|-----------|---------|---------------|---------|
+| AAPL   | 2         | 0.6432  | -1.3557       | 1.2172  |
+| MSFT   | 3         | 0.3222  | 0.0125        | 1.3015  |
+| GSPC   | 3         | 0.4652  | 0.6507        | 2.5115  |
+| VIX    | 0         | 0.6432  | -3.6303       | -1.0574 |
+| AMZN   | 1         | 0.4585  | -0.9859       | 0.8483  |
+
+> The **Score** balances regime stability (entropy) and data fit (log-likelihood). **Lower scores are better**, though interpretability remains important.
+
+---
+
+## 6. Observations on Market Proxy (VIX)
+
+One advantage of using HMMs over threshold-based regime classifiers is their ability to:
+
+- Dynamically capture **trend-based transitions**  
+- Avoid rigid boundaries by learning **data-driven regime shifts**
+
+The model identifies different behavior in **historical volatility vs. implied volatility (VIX)**. This could reflect either:
+
+- **Lagging effects**: Historical volatility often trails implied volatility  
+- **Model limitations**: VIX may not perfectly represent forward-looking volatility for all tickers or timeframes
 
 ---
 
-## 6. Regime Quality Metric (Lower is Better)
+## Summary
 
-| Ticker | Metric Value |
-|--------|--------------|
-| AAPL   | -124.84      |
-| MSFT   | 65.14        |
-| GSPC   | 219.12       |
-| AMZN   | -132.05      |
-
-These values provide a comparative measure of regime model fit, with **lower values indicating better alignment** between the HMM regimes and market dynamics.
-
----
+The standard HMM offers a **robust and interpretable framework** for modeling volatility regimes. While not all statistical associations (like volatility vs. returns) are confirmed, the model reliably captures key structural patterns in market volatility across major assets.

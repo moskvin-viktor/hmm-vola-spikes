@@ -10,7 +10,7 @@ pio.templates.default = "plotly_dark"
 
 # Available tickers and models
 AVAILABLE_TICKERS = ['AAPL', 'MSFT', 'GSPC', 'AMZN']
-AVAILABLE_MODELS = ['HMMModel', 'LayeredHMMModel', 'HierarchicalHMMModel']
+AVAILABLE_MODELS = ['HMMModel', 'LayeredHMMModel']
 
 # Load config
 config_plots = OmegaConf.load("../config/visualization_config.yaml")

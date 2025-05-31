@@ -14,9 +14,6 @@
   - [Limitations](#limitations)
   - [Output](#output-1)
 - [Hierarchical Hidden Markov Model](#hierarchical-hidden-markov-model)
-  - [Overview](#overview-1)
-  - [Advantages](#advantages)
-  - [Code](#code-1)
 - [Evaluation Metric: Log-Likelihood with Entropy Regularization](#evaluation-metric-log-likelihood-with-entropy-regularization)
   - [Overview](#overview-2)
   - [Formula](#formula)
@@ -75,7 +72,7 @@ HMMModel:
   init_params: "stmc"
   n_fits: 100
   tol: 1e-4
-  max_components: 3
+  max_components: 2
 ```
 
 ### Hyperparameters
@@ -100,11 +97,11 @@ The model is trained using the Expectation-Maximization (EM) algorithm:
 
 For each `n_components` in `[2, ..., max_components]`:
 
-  - Train `n_fits` different models with different random seeds.
+  - Train `n_fits` different models with different random seeds (this is done for a stability of a model, `n = 100` is computationallu heavier).
 
   - Fit using `GaussianHMM.fit(X_train)` from `hmmlearn`.
 
-  - Evaluate each using the provided `evaluation_metric`.
+  - Evaluate each using the provided `evaluation_metric` to compare between different `random_states` and the number of components.
 
 ### Output
 
@@ -127,21 +124,21 @@ The model can output:
 
 - **Layer 1** is trained on raw input features.
 
-- **Layer 2** is trained on the **posterior probabilities** (state likelihoods) from Layer 1.
+- **Layer 2** is trained on raw input features and the **posterior probabilities** (state likelihoods) from Layer 1.
 
 - ...
 
 - **Layer N** is trained on outputs from Layer N-1.
 
-This design enables the model to **capture increasingly abstract temporal structures** in the data across multiple layers of representation.
+This structure allows the model to capture higher-level and more abstract temporal dynamics over multiple layers.
 
 ### Use Cases
 
 - Modeling complex temporal dependencies and latent dynamics
 
-- Thus we can understand not only the regimes of the volatility, but also the regimes of the regimes of the volatility. We can allow more layered structure and thus abstract the potential noise of the primary volatiltiy layer by substitung it with the **posterior probabilities**.
-
 - We can hope to achieve the better separation of the regimes.
+
+- We can abstract a more complex first layer
 
 
 ### Hyperparameters 
@@ -161,7 +158,7 @@ LayeredHMMModel:
   tol: 1e-4
   layers:
     - min_components: 2
-      max_components: 3
+      max_components: 4
       covariance_type: "full"
       init_params: "stmc"
     - min_components: 2
@@ -201,7 +198,9 @@ General parameters inherited from the global config:
 
 ![A Hierarchical Hidden Markov Model](images/hhmm.png "Figure 1")
 
+Maybe will be added later.
 
+<!-- 
 ### Overview 
 
 
@@ -232,7 +231,7 @@ Where:
 
 ### Code
 
-::: hmmstock.LayeredHMMModel
+::: hmmstock.LayeredHMMModel -->
 
 # Metric
 
@@ -245,7 +244,7 @@ The `LogLikelihoodWithEntropy` metric extends the standard log-likelihood scorin
 ### 10 Formula
 
 
-- \( \mathcal{L} = \log P(X \mid \theta) \): the log-likelihood of the validation data \( X \) under model parameters \( \theta \)
+- \( \mathcal{L} = \log P(X \mid \theta) \): the log-likelihood of the validation data \( X \) under model parameters \( \theta \). This is additioanly scaled and then normalized by the length of sequences. The scaling is done in the `hmmlearn` package.
 - \( \mathbf{p} = [p_1, p_2, \ldots, p_K] \): the empirical distribution of predicted states
 - \( H(\mathbf{p}) = -\sum_{k=1}^K p_k \log(p_k + \epsilon) \): the entropy of the state distribution (with a small constant \( \epsilon \) to avoid log(0))
 - \( \lambda \): the entropy regularization weight (configurable, default is 3)
@@ -253,8 +252,12 @@ The `LogLikelihoodWithEntropy` metric extends the standard log-likelihood scorin
 The total evaluation score is:
 
 $$
-\text{Score} = \mathcal{L} + \lambda \cdot H(\mathbf{p})
+\text{Score} = \mathcal{L}  + \lambda \cdot H(\mathbf{p})
 $$
+
+Note: Although the metric doesn't depend on feature count directly, models trained on different feature sets will produce differently scaled log-likelihood values.
+
+
 
 ### Purpose
 
