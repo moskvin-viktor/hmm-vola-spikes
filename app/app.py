@@ -174,4 +174,5 @@ def render_tab(tab, selected_model, selected_ticker, selected_layer):
         ])
 
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=8050)
+    port = int(os.environ.get("PORT", 8050))  # Render sets the PORT env variable
+    app.run_server(host="0.0.0.0", port=port)
