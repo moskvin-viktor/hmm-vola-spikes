@@ -30,6 +30,11 @@ dev = ["black", "flake8", "ipykernel", "jupyterlab", "notebook"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Include any YAML files in your 'hmmstock' Python package and top-level config
+"hmmstock" = ["**/*.yaml"]
+"" = ["config/*.yaml"]
+
 [tool.setuptools]
 include-package-data = true
 package-dir = { "" = "src" }
