@@ -313,6 +313,7 @@ class HMMResultVisualization:
         """
         config = self.config['volatility_plot']
         quantile = config['quantile']
+        
         state_col = self.get_state_column(layer)
         capture_rates = {}
 
@@ -337,7 +338,65 @@ class HMMResultVisualization:
     def available_layer_indices(self):
         """Return the list of detected available layers."""
         return self.available_layers
+        
+
     
+    def plot_vol_trend_bar_by_state(self, layer=0) -> go.Figure:
+        """
+        Plot a bar chart showing the average 3-day volatility trend for each regime state.
+
+        Args:
+            layer (int): Regime layer index (default: 0)
+
+        Returns:
+            go.Figure: Plotly figure showing average volatility trend per state
+        """
+        config = self.config['volatility_plot']
+        df = self.df.copy()
+        state_col = self.get_state_column(layer)
+        df.index = pd.to_datetime(df.index)
+
+        # Store trend means per vol_col per state
+        trend_data = []
+
+        for vol_col in config['vol_colors']:
+            if vol_col not in df.columns:
+                continue
+
+            # Compute 3-day moving average and its trend
+            df[f'{vol_col}_3d_ma'] = df[vol_col].rolling(window=3).mean()
+            df[f'{vol_col}_3d_trend'] = df[f'{vol_col}_3d_ma'].diff()
+
+            # Group by state and compute mean trend
+            trend_summary = (
+                df.groupby(state_col)[f'{vol_col}_3d_trend']
+                .mean()
+                .reset_index()
+                .rename(columns={f'{vol_col}_3d_trend': 'avg_trend'})
+            )
+            trend_summary['vol_col'] = vol_col
+            trend_data.append(trend_summary)
+
+        trend_df = pd.concat(trend_data, ignore_index=True)
+
+        fig = px.bar(
+            trend_df,
+            x='vol_col',
+            y='avg_trend',
+            color=state_col,
+            barmode='group',
+            title=f'Average 3-Day Volatility Trend per Regime (Layer {layer})',
+            labels={
+                'avg_trend': 'Average 3-Day Trend',
+                'vol_col': 'Volatility Measure',
+                state_col: 'Regime'
+            }
+        )
+
+        fig.update_layout(xaxis_title='Volatility Measure', yaxis_title='Avg 3-Day Trend')
+        return fig
+
+
     def report_anova_test_on_returns(self, layer=0) -> str:
         """
         Report ANOVA p-value for normalized_returns across regime states for a specific layer.
