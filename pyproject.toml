@@ -50,7 +50,7 @@ description = "HMM-based stock regime detection and visualization app"
 authors = ["Viktor Moskvin <moskvin_viktor@pm.me>"]
 license = "MIT"
 readme = "README.md"
-packages = [{ include = "src" }]
+packages = [{ include = "hmmstock", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.12"
