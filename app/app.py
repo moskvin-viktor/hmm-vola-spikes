@@ -4,6 +4,7 @@ import plotly.io as pio
 from hmmstock.plots.plot_results import HMMResultVisualization
 from omegaconf import OmegaConf
 import os
+from pathlib import Path
 
 # Set Plotly theme to dark
 pio.templates.default = "plotly_dark"
@@ -13,7 +14,8 @@ AVAILABLE_TICKERS = ['AAPL', 'MSFT', 'GSPC', 'AMZN']
 AVAILABLE_MODELS = ['HMMModel', 'LayeredHMMModel']
 
 # Load config
-config_plots = OmegaConf.load("../config/visualization_config.yaml")
+CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "visualization_config.yaml"
+config_plots = OmegaConf.load(CONFIG_PATH)
 
 # Dash app setup
 app = dash.Dash(__name__)
@@ -174,5 +176,6 @@ def render_tab(tab, selected_model, selected_ticker, selected_layer):
         ])
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8050))  # Render sets the PORT env variable
-    app.run_server(host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 8050))  # Render sets this automatically
+    host = "0.0.0.0" if os.environ.get("RENDER") else "127.0.0.1"
+    app.run(host=host, port=port, debug=not os.environ.get("RENDER"))
