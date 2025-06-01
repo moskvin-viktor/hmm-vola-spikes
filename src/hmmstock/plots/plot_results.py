@@ -19,7 +19,7 @@ class HMMResultVisualization:
         self.ticker = ticker.replace("^", "")  # sanitize filename
         self.config = config
         # If no base_dir is provided, go 1 level up from app/ directory
-        self.base_dir = Path(self.config['base_results_path'])
+        self.base_dir = Path(__file__).resolve().parents[3] / "results"
         self.path_manager = PathManager(self.base_dir)  # Now correct
         self.df = self._load_regime_states()
         self.transition_dfs = self._load_transition_matrices()
