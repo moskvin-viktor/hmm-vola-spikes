@@ -4,6 +4,12 @@ This project implements and extends Hidden Markov Models (HMMs) to model regime-
 
 ---
 
+## Live Demo
+
+You can explore the interactive visualizations of the HMM-based analysis directly in your browser:
+
+[https://hmm-vola-spikes.onrender.com/](https://hmm-vola-spikes.onrender.com/)
+
 ## What is a Hidden Markov Model?
 
 A **Hidden Markov Model (HMM)** is a **probabilistic model** that assumes:
