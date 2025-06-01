@@ -165,14 +165,23 @@ def render_tab(tab, selected_model, selected_ticker, selected_layer):
     if tab == 'plots':
         return update_plots(selected_model, selected_ticker, selected_layer)
     elif tab == 'findings':
-        filename = f"markdown/findings_{selected_model}.md"
+        # Construct absolute path safely
+        base_dir = Path(__file__).resolve().parent  # project root
+        findings_path = base_dir / "markdown" / f"findings_{selected_model}.md"
+        
         try:
-            with open(filename, "r") as f:
+            with open(findings_path, "r", encoding="utf-8") as f:
                 markdown_text = f.read()
         except FileNotFoundError:
             markdown_text = f"### Findings file not found for {selected_model}"
+
         return html.Div([
-            dcc.Markdown(markdown_text, style={"color": "#dddddd", "backgroundColor": "#2b2b2b", "padding": "2rem", "borderRadius": "12px"})
+            dcc.Markdown(markdown_text, style={
+                "color": "#dddddd",
+                "backgroundColor": "#2b2b2b",
+                "padding": "2rem",
+                "borderRadius": "12px"
+            })
         ])
 
 if __name__ == "__main__":
