@@ -88,7 +88,30 @@ class DataManager:
         final_output_df = processed_pipeline_data.copy()
         final_output_df["market_vola"] = processed_proxy.reindex(final_output_df.index)
 
-        self.output = final_output_df.dropna()
+        # Now, transform to MultiIndex (ticker, date)
+        # First, create a list of DataFrames, one for each ticker
+        ticker_dfs = []
+        for ticker in self._tickers:
+            df_ticker = pd.DataFrame(index=final_output_df.index)
+            df_ticker["normalized_returns"] = final_output_df[ticker]
+
+            for window in self._volatility_windows:
+                df_ticker[f"vol_{window}"] = final_output_df[f"{ticker}_vol_{window}"]
+
+            df_ticker["market_vola"] = final_output_df["market_vola"] # market_vola is common
+
+            # Name the date index before setting MultiIndex
+            df_ticker.index.name = 'Date' # Add this line
+
+            # Add ticker level to the index
+            df_ticker["ticker"] = ticker
+            df_ticker = df_ticker.set_index("ticker", append=True).swaplevel(0, 1)
+            ticker_dfs.append(df_ticker)
+
+        # Concatenate all ticker DataFrames
+        multiindexed_df = pd.concat(ticker_dfs).sort_index()
+
+        self.output = multiindexed_df.dropna()
 
     def _load_config(self) -> None:
         """Parses and stores configuration parameters as private attributes."""
@@ -237,10 +260,10 @@ class DataManager:
 
     def get_data(self) -> pd.DataFrame:
         """
-        Returns the processed dataset as a single DataFrame.
+        Returns the processed dataset as a single MultiIndex DataFrame (ticker, date).
 
         Returns:
-            pd.DataFrame: DataFrame with returns, volatility, and proxy for all tickers.
+            pd.DataFrame: MultiIndex DataFrame with returns, volatility, and proxy for all tickers.
         """
         return self.output
 

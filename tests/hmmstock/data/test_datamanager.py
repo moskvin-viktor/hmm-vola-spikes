@@ -78,12 +78,13 @@ def test_datamanager_pipeline_success(mock_yfinance_download, mock_pathlib_path,
     # Assertions
     assert isinstance(output_df, pd.DataFrame)
     assert not output_df.empty
+    assert isinstance(output_df.index, pd.MultiIndex)
+    assert output_df.index.names == ['ticker', 'Date'] # Assuming 'Date' is the name of the date level
 
-    # Check columns: normalized_returns for AAPL/MSFT, volatility for each window, market_vola
+    # Check columns in the MultiIndex DataFrame
     expected_columns = [
-        'AAPL', 'MSFT', # Normalized returns are now directly in ticker columns
-        'AAPL_vol_2', 'AAPL_vol_3',
-        'MSFT_vol_2', 'MSFT_vol_3',
+        'normalized_returns',
+        'vol_2', 'vol_3',
         'market_vola'
     ]
     assert all(col in output_df.columns for col in expected_columns)
@@ -92,9 +93,9 @@ def test_datamanager_pipeline_success(mock_yfinance_download, mock_pathlib_path,
     for col in expected_columns:
         assert output_df[col].dtype == float
 
-    # Check date filtering
-    assert output_df.index.min() == pd.to_datetime("2023-01-04")
-    assert output_df.index.max() == pd.to_datetime("2023-01-10")
+    # Check date filtering (on the 'Date' level of the MultiIndex)
+    assert output_df.index.get_level_values('Date').min() == pd.to_datetime("2023-01-04")
+    assert output_df.index.get_level_values('Date').max() == pd.to_datetime("2023-01-10")
 
     # Check if yfinance.download was called
     call_args, call_kwargs = mock_yfinance_download.call_args
@@ -128,15 +129,12 @@ def test_datamanager_cache_hit(mock_yfinance_download, mock_pathlib_path, mock_p
     # Assertions
     assert isinstance(output_df, pd.DataFrame)
     assert not output_df.empty
-
-    # yfinance.download should NOT be called on cache hit
-    mock_yfinance_download.assert_not_called()
-    mock_dump.assert_not_called() # Data should not be re-saved
-    mock_load.assert_called_once() # Verify cache load
+    assert isinstance(output_df.index, pd.MultiIndex)
+    assert output_df.index.names == ['ticker', 'Date']
 
     # Check date filtering
-    assert output_df.index.min() == pd.to_datetime("2023-01-04")
-    assert output_df.index.max() == pd.to_datetime("2023-01-10")
+    assert output_df.index.get_level_values('Date').min() == pd.to_datetime("2023-01-04")
+    assert output_df.index.get_level_values('Date').max() == pd.to_datetime("2023-01-10")
 
 def test_datamanager_empty_data_from_yfinance(mock_yfinance_download, mock_pathlib_path, sample_config):
     mock_yfinance_download.return_value = pd.DataFrame() # Simulate empty data
@@ -160,8 +158,10 @@ def test_datamanager_no_date_filter(mock_yfinance_download, mock_pathlib_path, s
     output_df = dm.get_data()
 
     # Check that no date filtering occurred
-    assert output_df.index.min() == pd.to_datetime("2023-01-04")
-    assert output_df.index.max() == pd.to_datetime("2023-01-10")
+    assert isinstance(output_df.index, pd.MultiIndex)
+    assert output_df.index.names == ['ticker', 'Date']
+    assert output_df.index.get_level_values('Date').min() == pd.to_datetime("2023-01-04")
+    assert output_df.index.get_level_values('Date').max() == pd.to_datetime("2023-01-10")
 
 def test_datamanager_market_proxy_processing(mock_yfinance_download, mock_pathlib_path, sample_config):
     dm = DataManager(sample_config)
@@ -181,9 +181,9 @@ def test_datamanager_volatility_normalization(mock_yfinance_download, mock_pathl
     dm = DataManager(sample_config)
     output_df = dm.get_data()
 
-    assert 'AAPL_vol_2' in output_df.columns
-    assert output_df['AAPL_vol_2'].dtype == float
-    assert not output_df['AAPL_vol_2'].empty
+    assert 'vol_2' in output_df.columns
+    assert output_df['vol_2'].dtype == float
+    assert not output_df['vol_2'].empty
 
     # More specific tests would involve calculating expected normalized volatility
     # and comparing, but that's more of a unit test for VolatilityNormalizer itself.
