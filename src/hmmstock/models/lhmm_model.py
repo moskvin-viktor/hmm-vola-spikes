@@ -4,19 +4,25 @@ import os
 import joblib
 from hmmlearn import hmm
 import pandas as pd
+from .markov_model import MarkovModel
+
 #  Set up logging
 logging_dir = "results/logs"
 os.makedirs(logging_dir, exist_ok=True)
 logging.basicConfig(
     filename=os.path.join(logging_dir, "hmm_model.log"),
-    filemode='a',
+    filemode="a",
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 from pathlib import Path
 
-class LayeredHMMModel:
+
+from collections.abc import Callable
+
+
+class LayeredHMMModel(MarkovModel):
     """
     Layered HMM model: trains multiple HMMs sequentially in a hierarchical fashion.
 
@@ -29,7 +35,10 @@ class LayeredHMMModel:
     This enables the model to learn increasingly abstract or hierarchical temporal regimes.
     """
 
-    def __init__(self, name: str, X: np.ndarray, config, evaluation_metric):
+    is_layered: bool = True
+    name: str = "LayeredHMMModel"
+
+    def __init__(self, name: str, X: np.ndarray, config: dict, evaluation_metric):
         """
         Initializes the LayeredHMMModel.
 
@@ -39,16 +48,15 @@ class LayeredHMMModel:
             config: Configuration object containing HMM and layer settings.
             evaluation_metric (callable): Function to evaluate model performance.
         """
-        self.name = name
         self.X = X
         self.cfg = config
         self.evaluation_metric = evaluation_metric
         self.models = []
-        self.is_layered = True
-        self.best_score = -np.inf  # <-- Added attribute
-        self.path = os.path.join(f"results_{self.name}", "models", f"{self.name}_layered_hmm")
-    
-    def fit(self, splitter: callable) -> None | hmm.GaussianHMM:
+        self.path = os.path.join(
+            f"results_{self.name}", "models", f"{self.name}_layered_hmm"
+        )
+
+    def fit(self, splitter: Callable[[np.ndarray], tuple[np.ndarray, np.ndarray]]) -> None | hmm.GaussianHMM:
         """
         Trains a sequence of HMM models, each using the original input features
         plus the posterior probabilities from the previous layer.
@@ -65,26 +73,28 @@ class LayeredHMMModel:
 
         original_X = self.X.copy()
         current_X = original_X
-        np.random.seed(self.cfg.random_seed)
+        np.random.seed(self.cfg['random_seed'])
 
-        for layer_idx in range(self.cfg.num_layers):
+        for layer_idx in range(self.cfg['num_layers']):
             logger.info(f"[{self.name}] Training Layer {layer_idx+1}")
 
             best_overall_score = -np.inf
             best_model = None
 
-            layer_cfg = self.cfg.layers[layer_idx]
+            layer_cfg = self.cfg['layers'][layer_idx]
             X_train, X_validate = splitter(current_X)
 
-            for n_components in range(layer_cfg.min_components, layer_cfg.max_components + 1):
-                for fit_idx in range(self.cfg.n_fits):
+            for n_components in range(
+                layer_cfg['min_components'], layer_cfg['max_components'] + 1
+            ):
+                for fit_idx in range(self.cfg['n_fits']):
                     model = hmm.GaussianHMM(
                         n_components=n_components,
-                        covariance_type=layer_cfg.covariance_type,
+                        covariance_type=layer_cfg['covariance_type'],
                         random_state=fit_idx,
-                        init_params=layer_cfg.init_params,
-                        n_iter=self.cfg.n_fits, 
-                        tol=self.cfg.tol
+                        init_params=layer_cfg['init_params'],
+                        n_iter=self.cfg['n_fits'],
+                        tol=self.cfg['tol'],
                     )
                     try:
                         model.fit(X_train)
@@ -93,15 +103,21 @@ class LayeredHMMModel:
                             best_model = model
                             best_overall_score = score
                     except Exception as e:
-                        logger.warning(f"[{self.name}] Layer {layer_idx+1} training failed: {e}")
+                        logger.warning(
+                            f"[{self.name}] Layer {layer_idx+1} training failed: {e}"
+                        )
 
             if best_model is None:
-                logger.error(f"[{self.name}] No model could be trained for Layer {layer_idx+1}")
+                logger.error(
+                    f"[{self.name}] No model could be trained for Layer {layer_idx+1}"
+                )
                 return None
 
-            if best_overall_score > self.best_score:
-                self.best_score = best_overall_score
-                print(f"[{self.name}] Final best score after {self.cfg.num_layers} layer(s): {self.best_score:.4f}")
+            if best_overall_score > LayeredHMMModel.best_score:
+                LayeredHMMModel.best_score = best_overall_score
+                print(
+                    f"[{self.name}] Final best score after {self.cfg.num_layers} layer(s): {LayeredHMMModel.best_score:.4f}"
+                )
 
             self.models.append(best_model)
 
@@ -127,14 +143,18 @@ class LayeredHMMModel:
 
         for idx, model in enumerate(self.models):
             raw_states = model.predict(current_X)
-            relabeled_states = self._relabel_states_by_volatility(raw_states, model, current_X)
+            relabeled_states = self._relabel_states_by_volatility(
+                raw_states, model, current_X
+            )
             all_layer_states[f"regime_layer{idx}"] = relabeled_states
 
             if idx < len(self.models) - 1:
                 posterior = model.predict_proba(current_X)
                 current_X = np.hstack([original_X, posterior])
 
-        return pd.DataFrame(all_layer_states, index=pd.RangeIndex(len(self.X))[-len(relabeled_states):])
+        return pd.DataFrame(
+            all_layer_states, index=pd.RangeIndex(len(self.X))[-len(relabeled_states) :]
+        )
 
     def _relabel_states_by_volatility(self, original_states, model, X_layer):
         """

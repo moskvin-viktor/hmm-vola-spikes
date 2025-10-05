@@ -7,7 +7,7 @@ HMMModel:
   covariance_type: "full"
   random_seed: 13
   init_params: "stmc"
-  n_fits: 100
+  n_fits: 10
   tol: 1e-4
   max_components: 2
 
