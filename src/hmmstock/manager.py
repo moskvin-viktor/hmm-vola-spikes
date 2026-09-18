@@ -33,12 +33,12 @@ class RegimeModelManager:
     def __init__(
         self,
         data_dict: dict[str, pd.DataFrame],
-        config_path: str,
+        cfg: DictConfig,
         evaluation_metric=None,
         train_test_splitter=None,
         model_class: type[RegimeModel] = HMMModel,
     ):
-        self.cfg = cast(DictConfig, OmegaConf.load(config_path))
+        self.cfg = cfg
 
         self.data_dict = {
             sanitize_ticker(ticker): df for ticker, df in data_dict.items()
@@ -48,7 +48,13 @@ class RegimeModelManager:
         }
 
         self.evaluation_metric = (
-            evaluation_metric() if evaluation_metric else LogLikelihoodWithEntropy()
+            evaluation_metric()
+            if evaluation_metric
+            else (
+                LogLikelihoodWithEntropy(
+                    entropy_weight=self.cfg.get("entropy_weight", 3)
+                )
+            )
         )
 
         split_node = self.cfg.get("split")

@@ -39,14 +39,14 @@ A **Hidden Markov Model (HMM)** is a **probabilistic model** that assumes:
 ### 3. Hierarchical HMM (HHMM)
 - Embeds an HMM inside each top-level state.
 - Models **nested dynamics**, such as market phase → sub-regime.
-- Implemented and trainable via `fit_model.py --model HierarchicalHMMModel`; not yet wired into the Dash app (its transition-matrix view assumes integer layer indices, which don't apply to HHMM's `top_level_state`/`sub_level_state` layers).
+- Implemented and trainable via `fit_model.py model_class=HierarchicalHMMModel`; not yet wired into the Dash app (its transition-matrix view assumes integer layer indices, which don't apply to HHMM's `top_level_state`/`sub_level_state` layers).
 
 
 ## Evaluation
 
-Model selection (choosing among the random restarts and component counts in `config/model.yaml`) is scored per fit using `LogLikelihoodWithEntropy`: validation log-likelihood, normalized by sequence length, plus an entropy term over state-occupancy (weighted by `entropy_weight` in `config/model.yaml`) that favors more balanced use of the states.
+Model selection (choosing among the random restarts and component counts in `config/model/default.yaml`) is scored per fit using `LogLikelihoodWithEntropy`: validation log-likelihood, normalized by sequence length, plus an entropy term over state-occupancy (weighted by `entropy_weight` in `config/model/default.yaml`) that favors more balanced use of the states.
 
-A second metric, `BICMetric` (the model's Bayesian Information Criterion), also exists in `src/hmmstock/metrics.py` but isn't currently wired up anywhere — `config/model.yaml`'s `evaluation_metric: "BICMetric"` key is unused; only `LogLikelihoodWithEntropy` runs.
+A second metric, `BICMetric` (the model's Bayesian Information Criterion), also exists in `src/hmmstock/metrics.py` but isn't currently wired up anywhere — `config/model/default.yaml`'s `evaluation_metric: "BICMetric"` key is unused; only `LogLikelihoodWithEntropy` runs.
 
 
 ## Features
@@ -70,10 +70,17 @@ hatch env create
 
 ### 2. Train HMM Models
 
-Use the following command to fetch data, compute features, and fit models:
+Configuration is managed with [Hydra](https://hydra.cc/), composed from `config/config.yaml` (`config/data/default.yaml` + `config/model/default.yaml`). Use the following command to fetch data, compute features, and fit models:
 
 ```bash
 hatch run python fit_model.py
+```
+
+Which model trains is set by `model_class` in `config/config.yaml` (default `LayeredHMMModel`). Any config value can be overridden on the CLI, e.g.:
+
+```bash
+hatch run python fit_model.py model_class=HMMModel model.HMMModel.max_components=3
+hatch run python fit_model.py model_class=all  # train every model
 ```
 
 This will:

@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+from omegaconf import OmegaConf
 from pydantic import BaseModel
 
 from hmmstock.manager import RegimeModelManager, sanitize_ticker
@@ -59,12 +60,15 @@ class FakeRegimeModel(RegimeModel):
         return [pd.DataFrame([[0.9, 0.1], [0.2, 0.8]], index=labels, columns=labels)]
 
 
-def _write_config(tmp_path) -> str:
-    path = tmp_path / "model.yaml"
-    path.write_text(
-        "FakeRegimeModel:\n  dummy: true\nsplit:\n  train_size: 0.8\n  shuffle: false\n"
+def _cfg():
+    """A composed-config stand-in: what RegimeModelManager now receives
+    directly (Hydra composes this for real via config/config.yaml)."""
+    return OmegaConf.create(
+        {
+            "FakeRegimeModel": {"dummy": True},
+            "split": {"train_size": 0.8, "shuffle": False},
+        }
     )
-    return str(path)
 
 
 def _sample_data() -> dict[str, pd.DataFrame]:
@@ -74,9 +78,8 @@ def _sample_data() -> dict[str, pd.DataFrame]:
 
 
 class _NullMetric:
-    """Stand-in for LogLikelihoodWithEntropy, which loads its own
-    hardcoded config/model.yaml -- irrelevant here since FakeRegimeModel
-    never calls evaluate()."""
+    """Stand-in for LogLikelihoodWithEntropy; irrelevant here since
+    FakeRegimeModel never calls evaluate()."""
 
     def evaluate(self, model, X_validate):
         return 0.0
@@ -88,7 +91,7 @@ def test_train_all_writes_csv_transition_matrix_and_pickle(tmp_path, monkeypatch
 
     manager = RegimeModelManager(
         data_dict=_sample_data(),
-        config_path=_write_config(tmp_path),
+        cfg=_cfg(),
         model_class=FakeRegimeModel,
         evaluation_metric=_NullMetric,
     )
@@ -111,10 +114,9 @@ def test_train_all_second_call_loads_from_store_without_refitting(
     monkeypatch.chdir(tmp_path)
     FakeRegimeModel.instances.clear()
 
-    config_path = _write_config(tmp_path)
     RegimeModelManager(
         data_dict=_sample_data(),
-        config_path=config_path,
+        cfg=_cfg(),
         model_class=FakeRegimeModel,
         evaluation_metric=_NullMetric,
     ).train_all()
@@ -122,7 +124,7 @@ def test_train_all_second_call_loads_from_store_without_refitting(
 
     RegimeModelManager(
         data_dict=_sample_data(),
-        config_path=config_path,
+        cfg=_cfg(),
         model_class=FakeRegimeModel,
         evaluation_metric=_NullMetric,
     ).train_all()
@@ -138,7 +140,7 @@ def test_write_transition_matrices_skips_unknown_ticker_without_raising(
 
     manager = RegimeModelManager(
         data_dict=_sample_data(),
-        config_path=_write_config(tmp_path),
+        cfg=_cfg(),
         model_class=FakeRegimeModel,
         evaluation_metric=_NullMetric,
     )
@@ -153,7 +155,7 @@ def test_write_transition_matrices_skips_unfitted_model_without_raising(
 
     manager = RegimeModelManager(
         data_dict=_sample_data(),
-        config_path=_write_config(tmp_path),
+        cfg=_cfg(),
         model_class=FakeRegimeModel,
         evaluation_metric=_NullMetric,
     )

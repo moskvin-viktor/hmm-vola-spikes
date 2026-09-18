@@ -179,3 +179,8 @@ cython_debug/
 # fit_model.py output — regenerated locally, not shipped.
 # examples/ holds the small tracked dataset the demo/dashboard uses instead.
 /results/
+
+# Hydra's default run-artifact dirs (unused here: hydra.job.chdir is
+# false in config/config.yaml, but keep this if that ever changes).
+/outputs/
+/multirun/

@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class SplitConfig(BaseModel):
-    """Train/validation split order (from `config/model.yaml`'s `split:` section).
+    """Train/validation split order (from `config/model/default.yaml`'s `split:` section).
 
     train_size: fraction of rows kept for training. Default 0.8.
     shuffle: shuffle row order before splitting. Default False (rows are

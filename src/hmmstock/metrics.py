@@ -1,7 +1,4 @@
-from typing import cast
-
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
 
 
 class EvaluationMetric:
@@ -10,9 +7,8 @@ class EvaluationMetric:
 
 
 class LogLikelihoodWithEntropy(EvaluationMetric):
-    def __init__(self, config_path="config/model.yaml"):
-        self.cfg = cast(DictConfig, OmegaConf.load(config_path))
-        self.entropy_weight = self.cfg.get("entropy_weight", 3)
+    def __init__(self, entropy_weight: float = 3):
+        self.entropy_weight = entropy_weight
 
     def evaluate(self, model, X_validate):
         log_likelihood = model.score(X_validate)
