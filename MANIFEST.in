@@ -1,2 +1,0 @@
-include config/*.yaml
-include data/*.csv

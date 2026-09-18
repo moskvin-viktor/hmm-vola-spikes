@@ -56,14 +56,19 @@ A **Hidden Markov Model (HMM)** is a **probabilistic model** that assumes:
 
 ### 1. Set Up the Environment
 
-Install dependencies using your preferred Python package manager. All dependencies are listed in `pyproject.toml`.
+This project uses [Hatch](https://hatch.pypa.io/) for environment and dependency management. All dependencies are declared in `pyproject.toml`.
+
+```bash
+pip install hatch
+hatch env create
+```
 
 ### 2. Train HMM Models
 
 Use the following command to fetch data, compute features, and fit models:
 
 ```bash
-python fit_model.py
+hatch run python fit_model.py
 ```
 
 This will:
@@ -80,9 +85,15 @@ This will:
 Start the interactive dashboard by running:
 
 ```bash
-python app/app.py
+hatch run python app/app.py
 ```
 
 Then open http://127.0.0.1:8050/ in your browser.
+
+### 5. Run Tests
+
+```bash
+hatch run test
+```
 
 4. Alternatively, you can check up the ``doc`` folder for the theoretical insights.
