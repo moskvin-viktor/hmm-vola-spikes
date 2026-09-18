@@ -1,0 +1,15 @@
+n_fits: 20
+random_seed: 13
+tol: 0.0001
+top_layer:
+  min_components: 2
+  max_components: 6
+  covariance_type: full
+  init_params: stmc
+  n_iter: 100
+sub_layer:
+  min_components: 2
+  max_components: 3
+  covariance_type: full
+  init_params: stmc
+  n_iter: 100

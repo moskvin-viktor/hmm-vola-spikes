@@ -1,0 +1,32 @@
+{
+  "AAPL": {
+    "fitted": true,
+    "cv_score": -587.9816602586665,
+    "n_components": 4,
+    "recorded_at": "2026-09-18T15:25:59.728886+00:00"
+  },
+  "MSFT": {
+    "fitted": true,
+    "cv_score": -869.160907976504,
+    "n_components": 5,
+    "recorded_at": "2026-09-18T15:27:37.753917+00:00"
+  },
+  "GSPC": {
+    "fitted": true,
+    "cv_score": 216.1313907453622,
+    "n_components": 4,
+    "recorded_at": "2026-09-18T15:29:08.645756+00:00"
+  },
+  "VIX": {
+    "fitted": true,
+    "cv_score": -928.5382187607393,
+    "n_components": 5,
+    "recorded_at": "2026-09-18T15:30:47.030795+00:00"
+  },
+  "AMZN": {
+    "fitted": true,
+    "cv_score": -753.0412413861357,
+    "n_components": 6,
+    "recorded_at": "2026-09-18T15:32:19.688496+00:00"
+  }
+}
