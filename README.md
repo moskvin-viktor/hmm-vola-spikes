@@ -36,12 +36,17 @@ A **Hidden Markov Model (HMM)** is a **probabilistic model** that assumes:
 - Each layer takes the **posterior state probabilities** from the previous as input.
 - Enhances the ability to learn hierarchical/abstract structure.
 
-### 3. (Planned) Hierarchical HMM (HHMM)
+### 3. Hierarchical HMM (HHMM)
 - Embeds an HMM inside each top-level state.
 - Models **nested dynamics**, such as market phase → sub-regime.
+- Implemented and trainable via `fit_model.py --model HierarchicalHMMModel`; not yet wired into the Dash app (its transition-matrix view assumes integer layer indices, which don't apply to HHMM's `top_level_state`/`sub_level_state` layers).
 
 
-## Evaluation: Log-Likelihood with Entropy Regularization
+## Evaluation
+
+Model selection (choosing among the random restarts and component counts in `config/model.yaml`) is scored per fit using `LogLikelihoodWithEntropy`: validation log-likelihood, normalized by sequence length, plus an entropy term over state-occupancy (weighted by `entropy_weight` in `config/model.yaml`) that favors more balanced use of the states.
+
+A second metric, `BICMetric` (the model's Bayesian Information Criterion), also exists in `src/hmmstock/metrics.py` but isn't currently wired up anywhere — `config/model.yaml`'s `evaluation_metric: "BICMetric"` key is unused; only `LogLikelihoodWithEntropy` runs.
 
 
 ## Features
@@ -79,7 +84,7 @@ This will:
 
 - Train HMMs with up to N states (configurable)
 
-- Save regime-labeled outputs and transition matrices to the results/ directory
+- Save regime-labeled outputs and transition matrices to the `results/` directory (gitignored — regenerated locally, not shipped)
 
 3. Launch the Dash app
 Start the interactive dashboard by running:
@@ -89,6 +94,8 @@ hatch run python app/app.py
 ```
 
 Then open http://127.0.0.1:8050/ in your browser.
+
+By default the dashboard reads from `examples/`, a small pre-computed dataset checked into the repo so the app (and the live demo) works without needing `yfinance` API access or a training run first. Run `fit_model.py` and point `HMMResultVisualization` at `results/` to see your own data instead.
 
 ### 5. Run Tests
 

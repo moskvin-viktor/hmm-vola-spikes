@@ -6,15 +6,6 @@ import numpy as np
 import pandas as pd
 from hmmlearn import hmm
 
-#  Set up logging
-logging_dir = "results/logs"
-os.makedirs(logging_dir, exist_ok=True)
-logging.basicConfig(
-    filename=os.path.join(logging_dir, "hmm_model.log"),
-    filemode="a",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 

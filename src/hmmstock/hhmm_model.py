@@ -6,15 +6,6 @@ import numpy as np
 import pandas as pd
 from hmmlearn import hmm
 
-#  Set up logging
-logging_dir = "results/logs"
-os.makedirs(logging_dir, exist_ok=True)
-logging.basicConfig(
-    filename=os.path.join(logging_dir, "hmm_model.log"),
-    filemode="a",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 
@@ -152,19 +143,12 @@ class HierarchicalHMMModel:
 
             if best_sub_model:
                 self.sub_models[top_state] = best_sub_model
+                if best_sub_score > self.best_score:
+                    self.best_score = best_sub_score
             else:
                 logger.error(
                     f"[{self.name}] No Sub-HMM could be trained for Top State {top_state}"
                 )
-
-        if best_sub_model:
-            self.sub_models[top_state] = best_sub_model
-            if best_sub_score > self.best_score:
-                self.best_score = best_sub_score
-        else:
-            logger.error(
-                f"[{self.name}] No Sub-HMM could be trained for Top State {top_state}"
-            )
 
         self.models.append(self.top_model)
         return self.top_model

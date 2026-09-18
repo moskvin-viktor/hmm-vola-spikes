@@ -26,7 +26,6 @@ def default_split(X, split_cfg=None):
         split_cfg = {"train_ratio": 0.8, "validation_ratio": 0.2, "shuffle": False}
 
     train_ratio = split_cfg.get("train_ratio", 0.8)
-    validation_ratio = split_cfg.get("validation_ratio", 0.2)
     shuffle = split_cfg.get("shuffle", False)
 
     n = len(X)

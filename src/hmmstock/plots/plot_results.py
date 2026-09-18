@@ -22,9 +22,14 @@ class HMMResultVisualization:
         self.model_name = model_name
         self.ticker = ticker.replace("^", "")  # sanitize filename
         self.config = config
-        # If no base_dir is provided, go 1 level up from app/ directory
-        self.base_dir = Path(__file__).resolve().parents[3] / "results"
-        self.path_manager = PathManager(self.base_dir)  # Now correct
+        # Default to the tracked example dataset so the dashboard works
+        # without having to run fit_model.py (and hit the yfinance API) first.
+        self.base_dir = (
+            Path(base_dir)
+            if base_dir is not None
+            else Path(__file__).resolve().parents[3] / "examples"
+        )
+        self.path_manager = PathManager(self.base_dir)
         self.df = self._load_regime_states()
         self.transition_dfs = self._load_transition_matrices()
         self.available_layers = self._detect_layers()
@@ -337,40 +342,6 @@ class HMMResultVisualization:
             y=list(correlations.values()),
             labels={"x": "Volatility Measure", "y": "Correlation with Regime State"},
             title=f"Correlation Between Volatility and Regime State (Layer {layer})",
-        )
-        return fig
-
-    def plot_regime_capture_of_vol_quantiles(self, layer=0):
-        """
-        Plot regime capture rates of high-volatility quantile events for a specific layer.
-
-        Args:
-            layer: The regime layer to plot (default=0)
-        """
-        config = self.config["volatility_plot"]
-        quantile = config["quantile"]
-
-        state_col = self.get_state_column(layer)
-        capture_rates = {}
-
-        for vol_col in config["vol_colors"]:
-            if vol_col in self.df.columns:
-                threshold = self.df[vol_col].quantile(quantile)
-                high_vol = self.df[self.df[vol_col] >= threshold]
-                captured = high_vol[state_col].value_counts(normalize=True)
-                capture_rates[vol_col] = captured
-
-        df_capture = pd.DataFrame(capture_rates).fillna(0)
-
-        fig = px.bar(
-            df_capture,
-            barmode="stack",
-            title=f"Regime Capture of Top {int(quantile * 100)}% Volatility Events (Layer {layer})",
-            labels={"value": "Capture Rate", "index": "Regime State"},
-        )
-        fig.update_layout(
-            xaxis_title="Regime State",
-            yaxis_title="Proportion of High Volatility Captured",
         )
         return fig
 

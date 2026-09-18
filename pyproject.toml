@@ -38,8 +38,8 @@ features = ["dev"]
 
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
-fmt = "ruff format {args:src tests}"
-lint = "ruff check {args:src tests}"
+fmt = "ruff format {args:src tests app fit_model.py}"
+lint = "ruff check {args:src tests app fit_model.py}"
 typecheck = "ty check {args:src}"
 
 [tool.pytest.ini_options]
@@ -51,6 +51,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+# Long docstring/message lines aren't worth hard-wrapping; the formatter
+# already keeps actual code within line-length.
+ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]

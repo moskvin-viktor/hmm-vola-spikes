@@ -13,6 +13,10 @@ pio.templates.default = "plotly_dark"
 
 # Available tickers and models
 AVAILABLE_TICKERS = ["AAPL", "MSFT", "GSPC", "AMZN"]
+# HierarchicalHMMModel isn't listed here: plot_transition_matrix() keys
+# transition_dfs by int layer index, but HHMM's layers are the strings
+# "top_level_state"/"sub_level_state", and no transition matrix is ever
+# saved for the sub-level HMMs at all (see HierarchicalHMMModel.fit()).
 AVAILABLE_MODELS = ["HMMModel", "LayeredHMMModel"]
 
 # Load config

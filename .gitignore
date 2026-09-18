@@ -175,3 +175,7 @@ cython_debug/
 
 *.ipynb
 *.pkl
+
+# fit_model.py output — regenerated locally, not shipped.
+# examples/ holds the small tracked dataset the demo/dashboard uses instead.
+/results/

@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 from typing import cast
 
@@ -12,15 +11,6 @@ from .data.datamanager import default_split
 from .hmm_model import HMMModel
 from .metrics import LogLikelihoodWithEntropy
 
-# Set up logging
-logging_dir = "results/logs"
-os.makedirs(logging_dir, exist_ok=True)
-logging.basicConfig(
-    filename=os.path.join(logging_dir, "hmm_model.log"),
-    filemode="a",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 
@@ -87,7 +77,6 @@ class RegimeModelManager:
         if self.models:
             logger.info(f"Loaded saved models for {len(self.models)} tickers.")
             for ticker, model in self.models.items():
-                original_ticker = self.original_ticker_map[ticker]
                 self.states[ticker] = model.predict_states()
                 print(f"{model.best_score} for {self.model_name} and {ticker}.")
 
