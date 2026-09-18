@@ -87,6 +87,8 @@ hatch run python fit_model.py model_class=HMMModel model.HMMModel.max_components
 hatch run python fit_model.py model_class=all  # train every model
 ```
 
+`scripts/train_all_models.sh` trains all three in one sweep with a wider HMM component search (`max_components` 2 -> 6, so it's not capped at a 2-state model) and fewer random restarts per candidate to keep that tractable -- CV/test-holdout methodology (`n_splits`, `test_size`) is untouched. Extra Hydra overrides are forwarded, e.g. `scripts/train_all_models.sh data.tickers='[AAPL,MSFT]'`.
+
 This will:
 
 - Download historical data (or load from cache) using ```yfinance``` -- or swap in `hmmstock.data.fred_client.FredClient` (`run_pipeline(order, client=FredClient())`) to pull series straight from [FRED](https://fred.stlouisfed.org/) instead (e.g. `VIXCLS`, `DGS10`, `SP500`), no API key required. Both clients share the same interface, so either drops into the pipeline unchanged.
