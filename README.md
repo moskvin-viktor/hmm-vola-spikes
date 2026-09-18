@@ -4,12 +4,6 @@ This project implements and extends Hidden Markov Models (HMMs) to model regime-
 
 ---
 
-## Live Demo
-
-You can explore the interactive visualizations of the HMM-based analysis directly in your browser:
-
-[https://hmm-vola-spikes.onrender.com/](https://hmm-vola-spikes.onrender.com/)
-
 ## What is a Hidden Markov Model?
 
 A **Hidden Markov Model (HMM)** is a **probabilistic model** that assumes:
@@ -39,7 +33,7 @@ A **Hidden Markov Model (HMM)** is a **probabilistic model** that assumes:
 ### 3. Hierarchical HMM (HHMM)
 - Embeds an HMM inside each top-level state.
 - Models **nested dynamics**, such as market phase → sub-regime.
-- Implemented and trainable via `fit_model.py model_class=HierarchicalHMMModel`; not yet wired into the Dash app (its transition-matrix view assumes integer layer indices, which don't apply to HHMM's `top_level_state`/`sub_level_state` layers).
+- Implemented and trainable via `fit_model.py model_class=HierarchicalHMMModel`; `notebooks/explore_artifacts.py` groups its `sub_level_state` by `top_level_state` rather than assuming a flat integer layer index.
 
 
 ## Evaluation
@@ -58,7 +52,7 @@ Regime labels (`regime_layer0`, `top_level_state`, ...) are always ordered by in
 - Configurable data pipeline for fetching and processing stock and volatility data
 - Volatility proxy transformation via a dedicated abstraction (e.g., raw, smoothed, returns, normalized)
 - HMM model training for multiple stocks with support for volatility-based state relabeling
-- Interactive Dash app for exploring HMM results with plots
+- Interactive marimo notebook for exploring HMM results with Plotly charts
 ---
 
 ## Getting Started
@@ -99,18 +93,7 @@ This will:
 
 - Save a new versioned run under `artifacts/{ModelName}/version_N/` (gitignored — regenerated locally, not shipped), each containing a snapshot of the config used, per-ticker model pickles, regime-state CSVs, transition-matrix CSVs, and a `metrics.json` summary. Nothing is ever overwritten — every `fit_model.py` run gets its own version.
 
-3. Launch the Dash app
-Start the interactive dashboard by running:
-
-```bash
-hatch run python app/app.py
-```
-
-Then open http://127.0.0.1:8050/ in your browser.
-
-By default the dashboard reads from `examples/`, a small pre-computed dataset checked into the repo so the app (and the live demo) works without needing `yfinance` API access or a training run first. The Dash app is due to be replaced and doesn't yet read from the new `artifacts/` layout produced by `fit_model.py`.
-
-### 5. Explore Results in a Notebook
+### 3. Explore Results in a Notebook
 
 [marimo](https://marimo.io/) notebooks read trained runs straight from `artifacts/` via `PathManager` (`src/hmmstock/path_manager.py`) — pick a model, a version (run), and a ticker, and see its config, metrics, regime states, and transition matrices. No training, no network access.
 
@@ -120,10 +103,12 @@ hatch run notebook  # opens notebooks/ in the marimo editor
 
 `notebooks/explore_artifacts.py` is a starting example. Run `fit_model.py` at least once first so there's something under `artifacts/` to look at.
 
-### 6. Run Tests
+### 4. Run Tests
 
 ```bash
 hatch run test
 ```
 
-4. Alternatively, you can check up the ``doc`` folder for the theoretical insights.
+### 5. Read the Docs
+
+`docs/` (built with mkdocs) has the theoretical background, data pipeline, model design, and `docs/findings.md`'s results from a real training sweep. Build/serve locally with `hatch run pip install -e . && mkdocs serve` (or `mkdocs build --strict` to check for breakage).

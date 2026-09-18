@@ -1,7 +1,7 @@
 [project]
 name = "hmmstock"
 version = "0.1.0"
-description = "HMM-based stock regime detection and visualization app"
+description = "HMM-based stock regime detection"
 authors = [{ name = "Viktor Moskvin", email = "moskvin_viktor@pm.me" }]
 license = "MIT"
 readme = "README.md"
@@ -11,7 +11,6 @@ dependencies = [
     "pandas>=1.4.0",
     "numpy>=1.22.0",
     "plotly>=5.10.0",
-    "dash>=2.9.0",
     "marimo>=0.9",
     "hmmlearn>=0.2.8",
     "joblib>=1.2.0",
@@ -44,9 +43,9 @@ features = ["dev"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-e2e = "pytest -m e2e {args:tests}"
-fmt = "ruff format {args:src tests app notebooks fit_model.py}"
-lint = "ruff check {args:src tests app notebooks fit_model.py}"
-typecheck = "ty check --exclude src/hmmstock/plots {args:src}"
+fmt = "ruff format {args:src tests notebooks fit_model.py}"
+lint = "ruff check {args:src tests notebooks fit_model.py}"
+typecheck = "ty check {args:src}"
 notebook = "marimo edit {args:notebooks}"
 
 [tool.pytest.ini_options]
