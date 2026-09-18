@@ -104,7 +104,17 @@ Then open http://127.0.0.1:8050/ in your browser.
 
 By default the dashboard reads from `examples/`, a small pre-computed dataset checked into the repo so the app (and the live demo) works without needing `yfinance` API access or a training run first. The Dash app is due to be replaced and doesn't yet read from the new `artifacts/` layout produced by `fit_model.py`.
 
-### 5. Run Tests
+### 5. Explore Results in a Notebook
+
+[marimo](https://marimo.io/) notebooks read trained runs straight from `artifacts/` via `PathManager` (`src/hmmstock/path_manager.py`) — pick a model, a version (run), and a ticker, and see its config, metrics, regime states, and transition matrices. No training, no network access.
+
+```bash
+hatch run notebook  # opens notebooks/ in the marimo editor
+```
+
+`notebooks/explore_artifacts.py` is a starting example. Run `fit_model.py` at least once first so there's something under `artifacts/` to look at.
+
+### 6. Run Tests
 
 ```bash
 hatch run test

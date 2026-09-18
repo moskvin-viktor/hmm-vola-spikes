@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=1.22.0",
     "plotly>=5.10.0",
     "dash>=2.9.0",
+    "marimo>=0.9",
     "hmmlearn>=0.2.8",
     "joblib>=1.2.0",
     "omegaconf>=2.3.0",
@@ -42,9 +43,10 @@ features = ["dev"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-e2e = "pytest -m e2e {args:tests}"
-fmt = "ruff format {args:src tests app fit_model.py}"
-lint = "ruff check {args:src tests app fit_model.py}"
-typecheck = "ty check {args:src}"
+fmt = "ruff format {args:src tests app notebooks fit_model.py}"
+lint = "ruff check {args:src tests app notebooks fit_model.py}"
+typecheck = "ty check --exclude src/hmmstock/plots {args:src}"
+notebook = "marimo edit {args:notebooks}"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

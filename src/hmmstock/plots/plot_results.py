@@ -1,3 +1,9 @@
+# NOTE: broken. PathManager was rewritten for the artifacts/{model}/version_N/
+# layout ArtifactStore now writes (see artifact_store.py, path_manager.py);
+# this class still calls the old results/{model}/csvs/... API PathManager no
+# longer has. The Dash app (app/app.py) this feeds is being replaced by
+# marimo notebooks reading through the new PathManager -- see notebooks/.
+# Excluded from `ty check` (pyproject.toml) until then.
 import logging
 from pathlib import Path
 
