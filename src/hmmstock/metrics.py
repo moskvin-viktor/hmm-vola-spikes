@@ -1,16 +1,17 @@
-import numpy as np
-from omegaconf import OmegaConf
+from typing import cast
 
+import numpy as np
+from omegaconf import DictConfig, OmegaConf
 
 
 class EvaluationMetric:
     def evaluate(self, model, X_validate):
         raise NotImplementedError("Must implement `evaluate()` in subclass.")
-    
+
 
 class LogLikelihoodWithEntropy(EvaluationMetric):
-    def __init__(self, config_path = "config/model.yaml"):
-        self.cfg = OmegaConf.load(config_path)
+    def __init__(self, config_path="config/model.yaml"):
+        self.cfg = cast(DictConfig, OmegaConf.load(config_path))
         self.entropy_weight = self.cfg.get("entropy_weight", 3)
 
     def evaluate(self, model, X_validate):
@@ -28,9 +29,10 @@ class LogLikelihoodWithEntropy(EvaluationMetric):
         # self.entropy = entropy
         # self.normalized_ll = normalized_ll
         return normalized_ll + self.entropy_weight * entropy
-    
+
     # def __str__ (self) -> str:
     #     return f"Entropy: {self.entropy:.4f}, Normalized LL: {self.normalized_ll:.4f}"
+
 
 class BICMetric(EvaluationMetric):
     def evaluate(self, model, X_validate):

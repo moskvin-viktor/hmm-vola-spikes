@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from omegaconf import OmegaConf
+
 
 class MarketVolatilityProxyCalculations:
     def __init__(self, series: pd.Series, config: dict):

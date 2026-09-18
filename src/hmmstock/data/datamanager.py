@@ -1,13 +1,14 @@
-import yfinance as yf
-import numpy as np
-import pandas as pd
-import os
+import logging
 import pickle
 from pathlib import Path
-import logging
+
+import numpy as np
+import pandas as pd
+import yfinance as yf
 
 from .market_vola_proxy_calcs import MarketVolatilityProxyCalculations
 from .volatility_normalizer import VolatilityNormalizer
+
 # Set up logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -16,15 +17,15 @@ formatter = logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+
 def default_split(X, split_cfg=None):
-    '''Splitting on train/test 
+    """Splitting on train/test
     TODO: Should be moved inside the class and handled by the class
-    '''
+    """
     if split_cfg is None:
         split_cfg = {"train_ratio": 0.8, "validation_ratio": 0.2, "shuffle": False}
 
     train_ratio = split_cfg.get("train_ratio", 0.8)
-    validation_ratio = split_cfg.get("validation_ratio", 0.2)
     shuffle = split_cfg.get("shuffle", False)
 
     n = len(X)
@@ -38,12 +39,13 @@ def default_split(X, split_cfg=None):
 
     return X[train_idx], X[val_idx]
 
+
 class DataManager:
     """
     Class to manage stock data fetching, preprocessing, and caching.
 
     This class retrieves data from Yahoo Finance, computes log returns,
-    normalizes the data, applies date filtering, and injects a processed 
+    normalizes the data, applies date filtering, and injects a processed
     market volatility proxy (like the VIX) into the final output.
 
     Attributes:
@@ -81,7 +83,9 @@ class DataManager:
         self.volatility_windows = self.config["volatility_windows"]
         self.market_proxy_conf = self.config["market_proxy_processing"]
         self.market_proxy = self.market_proxy_conf["default_market_vola_proxy"]
-        self.vola_norm_method = self.config.get("volatility_processing", {}).get("normalize_method", "zscore")
+        self.vola_norm_method = self.config.get("volatility_processing", {}).get(
+            "normalize_method", "zscore"
+        )
         self.date_range = self.config.get("date_filter", {"start": None, "end": None})
         self.cache_file = Path(__file__).parent / "data_cache" / "cached_stock_data.pkl"
         self.all_tickers = list(set(self.tickers + [self.market_proxy]))
@@ -101,7 +105,9 @@ class DataManager:
                     return self._apply_date_filter(cached_data[self.all_tickers])
 
         logger.info("Fetching new stock data from Yahoo Finance...")
-        data = yf.download(self.all_tickers, period=self.period, interval=self.interval)["Close"]
+        data = yf.download(
+            self.all_tickers, period=self.period, interval=self.interval
+        )["Close"]
         self.cache_file.parent.mkdir(exist_ok=True)
         with open(self.cache_file, "wb") as f:
             pickle.dump(data, f)
@@ -134,7 +140,7 @@ class DataManager:
         """
         return np.log(self.data / self.data.shift(1)).dropna()
 
-    def _normalize_returns(self):# -> tuple:
+    def _normalize_returns(self):  # -> tuple:
         """
         Mean-centers returns.
 
@@ -144,14 +150,16 @@ class DataManager:
         mu = self.returns.mean()
         return mu, self.returns - mu
 
-    def _compute_rolling_volatility(self):# -> dict[Any, DataFrame]:
+    def _compute_rolling_volatility(self):  # -> dict[Any, DataFrame]:
         """
         Computes and normalizes rolling volatility.
 
         Returns:
             dict: Dict of ticker → DataFrame of rolling vol columns.
         """
-        vol_dict = {ticker: pd.DataFrame(index=self.returns.index) for ticker in self.tickers}
+        vol_dict = {
+            ticker: pd.DataFrame(index=self.returns.index) for ticker in self.tickers
+        }
         for ticker in self.tickers:
             for window in self.volatility_windows:
                 vol = self.returns[ticker].rolling(window).std()
@@ -159,7 +167,7 @@ class DataManager:
                 vol_dict[ticker][f"vol_{window}"] = norm_vol
         return vol_dict
 
-    def _generate_output(self) -> dict[str, pd.DataFrame]:# -> dict:
+    def _generate_output(self) -> dict[str, pd.DataFrame]:  # -> dict:
         """
         Combines normalized returns, volatility, and market proxy into output.
 

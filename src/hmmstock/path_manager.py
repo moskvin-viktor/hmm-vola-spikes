@@ -1,7 +1,8 @@
 from pathlib import Path
 
+
 class PathManager:
-    def __init__(self, results_base_dir: str):
+    def __init__(self, results_base_dir: str | Path):
         self.results_base_dir = Path(results_base_dir)
         self.base_dir = self.results_base_dir
         self.models_dir = self.base_dir
@@ -19,10 +20,12 @@ class PathManager:
         csvs_path = self.get_model_base_path(model_name) / "csvs"
         csvs_path.mkdir(parents=True, exist_ok=True)
         return csvs_path
-    
+
     def get_transition_matrices_path(self, model_name: str) -> Path:
         """Return the transition_matrices directory path for a model."""
-        transition_matrices_path = self.get_model_base_path(model_name) / "transition_matrices"
+        transition_matrices_path = (
+            self.get_model_base_path(model_name) / "transition_matrices"
+        )
         transition_matrices_path.mkdir(parents=True, exist_ok=True)
         return transition_matrices_path
 
@@ -43,8 +46,10 @@ class PathManager:
         saved_models_path = self.get_model_base_path(model_name) / "saved_models"
         saved_models_path.mkdir(parents=True, exist_ok=True)
         return saved_models_path
-    
-    def get_transition_matrix(self, model_name: str, ticket: str, filename: str) -> Path:
+
+    def get_transition_matrix(
+        self, model_name: str, ticket: str, filename: str
+    ) -> Path:
         """Return the saved_models directory path for a model."""
         saved_models_path = self.get_transition_matrices_path(model_name) / filename
         # saved_models_path.mkdir(parents=True, exist_ok=True)
