@@ -177,5 +177,15 @@ cython_debug/
 *.pkl
 
 # fit_model.py output — regenerated locally, not shipped.
-# examples/ holds the small tracked dataset the demo/dashboard uses instead.
-/results/
+# examples/artifacts/ holds a small tracked dataset (config/metrics/regime
+# states/transition matrices, no model pickles) used to render a static
+# notebook snapshot for GitHub Pages (.github/workflows/pages.yml).
+/artifacts/
+
+# Hydra's default run-artifact dirs (unused here: hydra.job.chdir is
+# false in config/config.yaml, but keep this if that ever changes).
+/outputs/
+/multirun/
+
+# marimo's per-notebook session/scratch state
+**/__marimo__/

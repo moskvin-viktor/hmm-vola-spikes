@@ -1,0 +1,59 @@
+# model.yaml
+
+# HMM model hyperparameters
+
+# HMM-specific configuration
+HMMModel:
+  covariance_type: "full"
+  random_seed: 13
+  init_params: "stmc"
+  n_fits: 100
+  n_iter: 100
+  tol: 1e-4
+  max_components: 2
+
+LayeredHMMModel:
+  num_layers: 2
+  n_fits: 100
+  random_seed: 13
+  tol: 1e-4
+  layers:
+    - min_components: 2
+      max_components: 4
+      covariance_type: "full"
+      init_params: "stmc"
+      n_iter: 100
+    - min_components: 2
+      max_components: 2
+      covariance_type: "full"
+      init_params: "stmc"
+      n_iter: 100
+
+HierarchicalHMMModel:
+  n_fits: 100
+  random_seed: 13
+  tol: 1e-4
+
+  top_layer:
+    min_components: 2
+    max_components: 3
+    covariance_type: "full"
+    init_params: "stmc"
+    n_iter: 100
+
+  sub_layer:
+    min_components: 2
+    max_components: 3
+    covariance_type: "full"
+    init_params: "stmc"
+    n_iter: 100
+
+# n_splits is the number of expanding-window walk-forward CV folds used
+# to pick n_components/seed (cv_score in metrics.json). See
+# src/hmmstock/data/splitter.py.
+split:
+  n_splits: 5
+
+# Evaluation metric: "LogLikelihoodWithEntropy" or "BICMetric".
+evaluation_metric: "BICMetric"
+entropy_weight: 4

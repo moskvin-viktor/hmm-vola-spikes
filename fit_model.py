@@ -1,13 +1,13 @@
-import argparse
-
-from omegaconf import OmegaConf
+import hydra
+from omegaconf import DictConfig
 
 from hmmstock import (
-    DataManager,
+    DataConfig,
     HierarchicalHMMModel,
     HMMModel,
     LayeredHMMModel,
     RegimeModelManager,
+    run_pipeline,
 )
 
 MODEL_CLASSES = {
@@ -17,34 +17,31 @@ MODEL_CLASSES = {
 }
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Fetch data, compute features, and fit HMM regime models."
-    )
-    parser.add_argument(
-        "--model",
-        choices=[*MODEL_CLASSES, "all"],
-        default="LayeredHMMModel",
-        help="Which model to train (default: LayeredHMMModel). 'all' trains every model.",
-    )
-    return parser.parse_args()
+@hydra.main(version_base=None, config_path="config", config_name="config")
+def main(cfg: DictConfig) -> None:
+    """Fetch data, compute features, and fit HMM regime models.
 
+    Which model(s) to train is set by cfg.model_class (config/config.yaml),
+    overridable on the CLI: `hatch run python fit_model.py model_class=HMMModel`.
+    Use `model_class=all` to train every model.
+    """
+    if cfg.model_class not in {*MODEL_CLASSES, "all"}:
+        raise ValueError(
+            f"Unknown model_class {cfg.model_class!r}; expected one of "
+            f"{[*MODEL_CLASSES, 'all']}"
+        )
+    model_names = list(MODEL_CLASSES) if cfg.model_class == "all" else [cfg.model_class]
 
-def main():
-    args = parse_args()
-    model_names = list(MODEL_CLASSES) if args.model == "all" else [args.model]
-
-    config = OmegaConf.load("config/data.yaml")
-    dm = DataManager(config)
-    data = dm.get_data()
+    order = DataConfig.from_omegaconf(cfg.data)
+    data = run_pipeline(order)
 
     for model_name in model_names:
-        model = RegimeModelManager(
+        manager = RegimeModelManager(
             data_dict=data,
-            config_path="config/model.yaml",
+            cfg=cfg.model,
             model_class=MODEL_CLASSES[model_name],
         )
-        model.train_all()
+        manager.train_all()
 
 
 if __name__ == "__main__":

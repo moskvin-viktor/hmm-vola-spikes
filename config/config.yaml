@@ -1,0 +1,12 @@
+defaults:
+  - data: default
+  - model: default
+  - _self_
+
+# Which RegimeModel to train: HMMModel | LayeredHMMModel | HierarchicalHMMModel | all
+# Override on the CLI, e.g.: hatch run python fit_model.py model_class=HMMModel
+model_class: LayeredHMMModel
+
+hydra:
+  job:
+    chdir: false # keep the invocation cwd, so results/ paths stay unchanged

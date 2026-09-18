@@ -1,7 +1,7 @@
 # Data Used 
 
 
-The `DataManager` class handles fetching, caching, and preprocessing of historical stock data and market volatility proxies. It provides cleaned, normalized data structures suitable for downstream modeling with HMMs or other regime detection techniques.
+`hmmstock.data.pipeline.run_pipeline`, driven by a validated `hmmstock.DataConfig`, handles fetching (via `YFinanceClient` or `FredClient`), caching, and preprocessing of historical stock data and market volatility proxies. It provides cleaned, normalized data structures suitable for downstream modeling with HMMs or other regime detection techniques.
 
 
 # Data Description
@@ -131,4 +131,6 @@ Idea is to clean the volatility as much as possible as well as use the `VIX` ind
 
 # Reference
 
-::: hmmstock.DataManager
+::: hmmstock.DataConfig
+
+::: hmmstock.data.pipeline.run_pipeline

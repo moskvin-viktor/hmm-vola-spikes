@@ -1,71 +1,111 @@
+import json
 from pathlib import Path
+
+import joblib
+import pandas as pd
+
+from .models.base import RegimeModel
 
 
 class PathManager:
-    def __init__(self, results_base_dir: str | Path):
-        self.results_base_dir = Path(results_base_dir)
-        self.base_dir = self.results_base_dir
-        self.models_dir = self.base_dir
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-        self.models_dir.mkdir(parents=True, exist_ok=True)
+    """Read-only navigator for the artifacts/{model_name}/version_N/ tree
+    that ArtifactStore writes (see artifact_store.py): resolves versions
+    and loads a run's config/metrics/models/regime-states/transition-
+    matrices, for exploring results (e.g. from a marimo notebook). This
+    doesn't write anything -- that's ArtifactStore's job.
+    """
 
-    def get_model_base_path(self, model_name: str) -> Path:
-        """Return the base path for a specific model."""
-        model_path = self.models_dir / model_name
-        model_path.mkdir(parents=True, exist_ok=True)
-        return model_path
+    def __init__(self, artifacts_root: str | Path = "artifacts"):
+        self.root = Path(artifacts_root)
 
-    def get_csvs_path(self, model_name: str) -> Path:
-        """Return the csvs directory path for a model."""
-        csvs_path = self.get_model_base_path(model_name) / "csvs"
-        csvs_path.mkdir(parents=True, exist_ok=True)
-        return csvs_path
+    def model_dir(self, model_name: str) -> Path:
+        return self.root / model_name
 
-    def get_transition_matrices_path(self, model_name: str) -> Path:
-        """Return the transition_matrices directory path for a model."""
-        transition_matrices_path = (
-            self.get_model_base_path(model_name) / "transition_matrices"
+    def versions(self, model_name: str) -> list[str]:
+        """All version_N directory names for a model, oldest first."""
+        model_dir = self.model_dir(model_name)
+        if not model_dir.exists():
+            return []
+        names = (
+            p.name
+            for p in model_dir.iterdir()
+            if p.is_dir() and p.name.startswith("version_")
         )
-        transition_matrices_path.mkdir(parents=True, exist_ok=True)
-        return transition_matrices_path
+        return sorted(names, key=lambda n: int(n.removeprefix("version_")))
 
-    def get_ticket_csv_path(self, model_name: str, ticket: str) -> Path:
-        """Return the path for a specific ticket inside csvs."""
-        ticket_path = self.get_csvs_path(model_name) / ticket
-        ticket_path.mkdir(parents=True, exist_ok=True)
-        return ticket_path
+    def latest_version(self, model_name: str) -> str | None:
+        versions = self.versions(model_name)
+        return versions[-1] if versions else None
 
-    def get_logs_path(self, model_name: str) -> Path:
-        """Return the logs directory path for a model."""
-        logs_path = self.get_model_base_path(model_name) / "logs"
-        logs_path.mkdir(parents=True, exist_ok=True)
-        return logs_path
+    def version_dir(self, model_name: str, version: str | int | None = None) -> Path:
+        """Path to a run's version directory. version=None resolves to the
+        latest; an int N is shorthand for "version_N"."""
+        version = f"version_{version}" if isinstance(version, int) else version
+        version = version or self.latest_version(model_name)
+        if version is None:
+            raise FileNotFoundError(
+                f"No trained versions found for {model_name!r} under {self.root}"
+            )
+        path = self.model_dir(model_name) / version
+        if not path.exists():
+            raise FileNotFoundError(
+                f"No {version!r} for {model_name!r} under {self.root}"
+            )
+        return path
 
-    def get_saved_models_path(self, model_name: str) -> Path:
-        """Return the saved_models directory path for a model."""
-        saved_models_path = self.get_model_base_path(model_name) / "saved_models"
-        saved_models_path.mkdir(parents=True, exist_ok=True)
-        return saved_models_path
+    def tickers(self, model_name: str, version: str | int | None = None) -> list[str]:
+        """Tickers with a saved model in this version."""
+        models_dir = self.version_dir(model_name, version) / "models"
+        if not models_dir.exists():
+            return []
+        return sorted(p.stem for p in models_dir.glob("*.pkl"))
 
-    def get_transition_matrix(
-        self, model_name: str, ticket: str, filename: str
+    def config_file(self, model_name: str, version: str | int | None = None) -> Path:
+        return self.version_dir(model_name, version) / "config.yaml"
+
+    def metrics_file(self, model_name: str, version: str | int | None = None) -> Path:
+        return self.version_dir(model_name, version) / "metrics.json"
+
+    def model_file(
+        self, model_name: str, ticker: str, version: str | int | None = None
     ) -> Path:
-        """Return the saved_models directory path for a model."""
-        saved_models_path = self.get_transition_matrices_path(model_name) / filename
-        # saved_models_path.mkdir(parents=True, exist_ok=True)
-        return saved_models_path
+        return self.version_dir(model_name, version) / "models" / f"{ticker}.pkl"
 
-    def get_ticket_csv_file(self, model_name: str, ticket: str, filename: str) -> Path:
-        """Return the full path to a CSV file inside a ticket folder."""
-        ticket_folder = self.get_ticket_csv_path(model_name, ticket)
-        return ticket_folder / filename
+    def regime_states_file(
+        self, model_name: str, ticker: str, version: str | int | None = None
+    ) -> Path:
+        return self.version_dir(model_name, version) / "regime_states" / f"{ticker}.csv"
 
-    def get_log_file(self, model_name: str, log_filename: str) -> Path:
-        """Return the full path to a log file inside logs."""
-        logs_folder = self.get_logs_path(model_name)
-        return logs_folder / log_filename
+    def transition_matrix_files(
+        self, model_name: str, ticker: str, version: str | int | None = None
+    ) -> list[Path]:
+        """A ticker's transition-matrix CSVs, ordered by layer."""
+        matrices_dir = self.version_dir(model_name, version) / "transition_matrices"
+        return sorted(matrices_dir.glob(f"{ticker}_layer*.csv"))
 
-    def get_saved_model_file(self, model_name: str, model_filename: str) -> Path:
-        """Return the full path to a saved model file."""
-        saved_folder = self.get_saved_models_path(model_name)
-        return saved_folder / model_filename
+    # -- loaders: read a path's content directly --
+
+    def load_metrics(self, model_name: str, version: str | int | None = None) -> dict:
+        return json.loads(self.metrics_file(model_name, version).read_text())
+
+    def load_model(
+        self, model_name: str, ticker: str, version: str | int | None = None
+    ) -> RegimeModel:
+        return joblib.load(self.model_file(model_name, ticker, version))
+
+    def load_regime_states(
+        self, model_name: str, ticker: str, version: str | int | None = None
+    ) -> pd.DataFrame:
+        return pd.read_csv(
+            self.regime_states_file(model_name, ticker, version),
+            index_col=0,
+            parse_dates=True,
+        )
+
+    def load_transition_matrices(
+        self, model_name: str, ticker: str, version: str | int | None = None
+    ) -> list[pd.DataFrame]:
+        return [
+            pd.read_csv(f, index_col=0)
+            for f in self.transition_matrix_files(model_name, ticker, version)
+        ]
