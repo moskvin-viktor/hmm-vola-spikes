@@ -85,7 +85,7 @@ hatch run python fit_model.py model_class=all  # train every model
 
 This will:
 
-- Download historical data (or load from cache) using ```yfinance```
+- Download historical data (or load from cache) using ```yfinance``` -- or swap in `hmmstock.data.fred_client.FredClient` (`run_pipeline(order, client=FredClient())`) to pull series straight from [FRED](https://fred.stlouisfed.org/) instead (e.g. `VIXCLS`, `DGS10`, `SP500`), no API key required. Both clients share the same interface, so either drops into the pipeline unchanged.
 
 - Compute features (e.g., log returns, volatility)
 
