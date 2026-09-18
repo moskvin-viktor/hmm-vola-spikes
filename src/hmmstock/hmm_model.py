@@ -1,6 +1,8 @@
-import numpy as np
 import logging
 import os
+from collections.abc import Callable
+
+import numpy as np
 from hmmlearn import hmm
 
 # Set up logging
@@ -8,18 +10,19 @@ logging_dir = "results/logs"
 os.makedirs(logging_dir, exist_ok=True)
 logging.basicConfig(
     filename=os.path.join(logging_dir, "hmm_model.log"),
-    filemode='a',
+    filemode="a",
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
 
 class HMMModel:
-    '''A class to encapsulate the HMM model training and prediction process.
+    """A class to encapsulate the HMM model training and prediction process.
     We use calssical HMM from hmmlearn library.
     The model is trained on the volatility of the log returns of the stock prices and a market proxy volatiltiy
-    '''
+    """
+
     def __init__(self, name: str, X: np.ndarray, config, evaluation_metric):
         self.name = name
         self.X = X
@@ -29,10 +32,10 @@ class HMMModel:
         self.is_layered = False
         self.best_score = -np.inf
 
-    def fit(self, splitter: callable) -> None | hmm.GaussianHMM:
-        '''Fit the HMM model to the data using the specified splitter and number of fits.
+    def fit(self, splitter: Callable) -> None | hmm.GaussianHMM:
+        """Fit the HMM model to the data using the specified splitter and number of fits.
         The function returns the best model based on the evaluation metric or None if fitting fails.
-        '''
+        """
         if len(self.X) < 20:
             logger.warning(f"[{self.name}] Not enough data to train. Skipping.")
             return None
@@ -51,7 +54,7 @@ class HMMModel:
                     random_state=idx,
                     init_params=self.cfg.init_params,
                     n_iter=self.cfg.n_fits,
-                    tol=self.cfg.tol
+                    tol=self.cfg.tol,
                 )
                 try:
                     model.fit(X_train)
@@ -63,8 +66,6 @@ class HMMModel:
                     normalized_ll = log_likelihood / len(X_validate)
 
                     base_score = self.evaluation_metric.evaluate(model, X_validate)
-
-                    
 
                     if base_score > best_overall_score:
                         print(
@@ -93,6 +94,7 @@ class HMMModel:
         return self._relabel_states_by_volatility(raw_states)
 
     def _relabel_states_by_volatility(self, original_states):
+        assert self.model is not None
         state_vols = []
         for state in range(self.model.n_components):
             state_obs = self.X[original_states == state]

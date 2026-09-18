@@ -1,5 +1,8 @@
-import pandas as pd
+from typing import cast
+
 import numpy as np
+import pandas as pd
+
 
 class VolatilityNormalizer:
     def __init__(self, method: str = "zscore"):
@@ -11,7 +14,7 @@ class VolatilityNormalizer:
         elif self.method == "minmax":
             return (series - series.min()) / (series.max() - series.min())
         elif self.method == "log":
-            return np.log1p(series)
+            return cast(pd.Series, np.log1p(series))
         elif self.method == "none":
             return series
         else:

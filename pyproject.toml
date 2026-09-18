@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["black", "flake8", "ipykernel", "jupyterlab", "notebook", "pytest"]
+dev = ["ruff", "ty", "ipykernel", "jupyterlab", "notebook", "pytest"]
 
 [build-system]
 requires = ["hatchling"]
@@ -38,13 +38,19 @@ features = ["dev"]
 
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
-fmt = "black src tests"
-lint = "flake8 src tests"
+fmt = "ruff format {args:src tests}"
+lint = "ruff check {args:src tests}"
+typecheck = "ty check {args:src}"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ['py312']
-include = '\.pyi?$'
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
