@@ -6,32 +6,16 @@ from sklearn.model_selection import TimeSeriesSplit
 
 
 class SplitConfig(BaseModel):
-    """Train/CV/test split order (from `config/model/default.yaml`'s
-    `split:` section).
+    """Walk-forward CV order (from `config/model/default.yaml`'s `split:`
+    section).
 
-    test_size: fraction of the full series reserved as a final holdout,
-        chronologically last, never used for model selection. Default 0.15.
-    n_splits: number of expanding-window walk-forward CV folds over the
-        remaining (non-test) data, used to select hyperparameters.
-        Default 5.
+    n_splits: number of expanding-window walk-forward CV folds, used to
+        select hyperparameters. Default 5.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    test_size: float = 0.15
     n_splits: int = 5
-
-
-def train_test_holdout(
-    X: np.ndarray, config: SplitConfig = SplitConfig()
-) -> tuple[np.ndarray, np.ndarray]:
-    """Chronological holdout: the first (1 - test_size) fraction of X for
-    training/CV, the last test_size fraction as an untouched test set.
-    Never shuffles -- X is a time series, and a shuffled holdout would let
-    training data from after the "test" period leak into selection."""
-    n = len(X)
-    split = int(n * (1 - config.test_size))
-    return X[:split], X[split:]
 
 
 def walk_forward_splits(
@@ -45,3 +29,12 @@ def walk_forward_splits(
     would leak future rows into training."""
     for train_idx, val_idx in TimeSeriesSplit(n_splits=n_splits).split(X):
         yield X[train_idx], X[val_idx]
+
+
+def adaptive_n_splits(n_samples: int, requested: int, min_per_fold: int = 10) -> int:
+    """Caps `requested` folds down so each fold gets roughly at least
+    `min_per_fold` samples on average, for data too scarce to support the
+    full requested fold count (e.g. HierarchicalHMMModel's per-regime
+    sub-partitions). Never goes below 2 -- sklearn's TimeSeriesSplit
+    requires at least that many."""
+    return max(2, min(requested, n_samples // min_per_fold))

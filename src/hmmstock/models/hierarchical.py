@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -7,12 +6,7 @@ from hmmlearn import hmm
 
 from .base import RegimeModel
 from .config import HierarchicalHMMConfig
-from .trainer import (
-    refit_gaussian_hmm,
-    score_on_test_holdout,
-    select_best_gaussian_hmm,
-    select_best_gaussian_hmm_holdout,
-)
+from .trainer import refit_gaussian_hmm, select_best_gaussian_hmm
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +16,21 @@ class HierarchicalHMMModel(RegimeModel):
     high-level regimes, and a separate sub-HMM is trained per top-level
     regime to model local dynamics within it.
 
-    The top-level HMM gets the same walk-forward CV + test-holdout
-    treatment as HMMModel. Sub-HMMs are trained on partitions of an
-    already-small dataset (must have >=10 samples), too little for
-    multi-fold CV, so they get a single train/test holdout split instead
-    (still chronologically honest, just not averaged over folds).
+    The top-level HMM gets the same walk-forward CV treatment as
+    HMMModel. Sub-HMMs are trained on partitions of an already-small
+    dataset (must have >=10 samples); select_best_gaussian_hmm caps
+    n_splits down for them automatically (adaptive_n_splits) when there
+    isn't enough data to support the requested fold count -- still
+    genuine walk-forward CV, just fewer/bigger folds.
+
+    Both top-level and sub-level states are relabeled by volatility (see
+    RegimeModel._relabel_states_by_volatility). Sub-level ranks are
+    computed per sub-HMM, so "sub-level_state 0" always means "the
+    lowest-variance sub-state within that particular top-level regime" --
+    not a globally comparable index across different regimes'
+    independently fitted sub-HMMs; group by top_level_state before
+    comparing sub_level_state across rows.
+
     transition_matrices() currently only exposes the top-level matrix; no
     per-sub-HMM matrices are saved.
     """
@@ -42,25 +46,19 @@ class HierarchicalHMMModel(RegimeModel):
         self.evaluation_metric = evaluation_metric
         self.top: hmm.GaussianHMM | None = None
         self.sub_models: dict[int, hmm.GaussianHMM] = {}
-        self.best_score = -np.inf
         self.cv_score = -np.inf
 
-    def fit(self, splitter: Callable, n_splits: int) -> hmm.GaussianHMM | None:
+    def fit(self, n_splits: int) -> hmm.GaussianHMM | None:
         if len(self.X) < 20:
             logger.warning(f"[{self.name}] Not enough data to train")
             return None
 
         np.random.seed(self.cfg.random_seed)
-        X_trainval, X_test = splitter(self.X)
-
-        if len(X_trainval) < 20:
-            logger.warning(f"[{self.name}] Not enough trainval data after holdout.")
-            return None
 
         logger.info(f"[{self.name}] Training Top-level HMM")
         top_cfg = self.cfg.top_layer
         best_n, best_seed, cv_score = select_best_gaussian_hmm(
-            X_trainval,
+            self.X,
             component_range=range(top_cfg.min_components, top_cfg.max_components + 1),
             n_fits=self.cfg.n_fits,
             n_splits=n_splits,
@@ -77,21 +75,6 @@ class HierarchicalHMMModel(RegimeModel):
             return None
 
         self.cv_score = cv_score
-        test_score = score_on_test_holdout(
-            X_trainval,
-            X_test,
-            cv_score,
-            n_components=best_n,
-            seed=best_seed,
-            covariance_type=top_cfg.covariance_type,
-            init_params=top_cfg.init_params,
-            n_iter=top_cfg.n_iter,
-            tol=self.cfg.tol,
-            evaluation_metric=self.evaluation_metric,
-            log_prefix=f"[{self.name}] Top ",
-        )
-        if test_score > self.best_score:
-            self.best_score = test_score
 
         # Deployed top-level model: refit the winning config on all data.
         self.top = refit_gaussian_hmm(
@@ -107,7 +90,9 @@ class HierarchicalHMMModel(RegimeModel):
             logger.error(f"[{self.name}] Top-level final refit failed")
             return None
 
-        top_states = self.top.predict(self.X)
+        top_states = self._relabel_states_by_volatility(
+            self.top.predict(self.X), self.top
+        )
 
         sub_cfg = self.cfg.sub_layer
         for top_state in np.unique(top_states):
@@ -121,15 +106,13 @@ class HierarchicalHMMModel(RegimeModel):
                 )
                 continue
 
-            sub_trainval, sub_test = splitter(sub_X)
-
-            best_sub_n, best_sub_seed, sub_score = select_best_gaussian_hmm_holdout(
-                sub_trainval,
-                sub_test,
+            best_sub_n, best_sub_seed, sub_score = select_best_gaussian_hmm(
+                sub_X,
                 component_range=range(
                     sub_cfg.min_components, sub_cfg.max_components + 1
                 ),
                 n_fits=self.cfg.n_fits,
+                n_splits=n_splits,
                 covariance_type=sub_cfg.covariance_type,
                 init_params=sub_cfg.init_params,
                 n_iter=sub_cfg.n_iter,
@@ -145,7 +128,7 @@ class HierarchicalHMMModel(RegimeModel):
                 continue
 
             # Deployed sub-model: refit the winning config on all of this
-            # regime's data (sub_trainval + sub_test).
+            # regime's data.
             final_sub_model = refit_gaussian_hmm(
                 sub_X,
                 n_components=best_sub_n,
@@ -160,8 +143,8 @@ class HierarchicalHMMModel(RegimeModel):
                 continue
 
             self.sub_models[top_state] = final_sub_model
-            if sub_score > self.best_score:
-                self.best_score = sub_score
+            if sub_score > self.cv_score:
+                self.cv_score = sub_score
 
         return self.top
 
@@ -169,15 +152,22 @@ class HierarchicalHMMModel(RegimeModel):
         if self.top is None or not self.sub_models:
             return None
 
-        top_states = self.top.predict(self.X)
-        sub_states = []
+        top_states = self._relabel_states_by_volatility(
+            self.top.predict(self.X), self.top
+        )
+        sub_relabel_maps = {
+            top_state: self._volatility_rank_map(sub_model)
+            for top_state, sub_model in self.sub_models.items()
+        }
 
+        sub_states = []
         for idx, top_state in enumerate(top_states):
             sub_model = self.sub_models.get(top_state)
             if sub_model is None:
                 sub_states.append(np.nan)
             else:
-                sub_states.append(sub_model.predict(self.X[idx : idx + 1])[0])
+                raw_sub_state = sub_model.predict(self.X[idx : idx + 1])[0]
+                sub_states.append(sub_relabel_maps[top_state][raw_sub_state])
 
         return pd.DataFrame(
             {"top_level_state": top_states, "sub_level_state": sub_states},

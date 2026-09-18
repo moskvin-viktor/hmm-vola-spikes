@@ -48,12 +48,10 @@ HierarchicalHMMModel:
     init_params: "stmc"
     n_iter: 100
 
-# Train/CV/test split. test_size is a chronological holdout (last
-# fraction of each ticker's series) never used for model selection;
-# n_splits is the number of expanding-window walk-forward CV folds run
-# over the rest, to pick n_components/seed. See src/hmmstock/data/splitter.py.
+# n_splits is the number of expanding-window walk-forward CV folds used
+# to pick n_components/seed (cv_score in metrics.json). See
+# src/hmmstock/data/splitter.py.
 split:
-  test_size: 0.15
   n_splits: 5
 
 # Evaluation metric: "LogLikelihoodWithEntropy" or "BICMetric".

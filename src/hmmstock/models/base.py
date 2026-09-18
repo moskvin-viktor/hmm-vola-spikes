@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from typing import ClassVar
 
 import numpy as np
@@ -21,8 +20,7 @@ class RegimeModel(ABC):
 
     name: str
     X: np.ndarray
-    best_score: float  # honest score on the held-out test slice, set by fit()
-    cv_score: float  # CV score fit() used to select hyperparameters, for comparison
+    cv_score: float  # walk-forward CV score fit() used to select hyperparameters
 
     @abstractmethod
     def __init__(
@@ -30,15 +28,14 @@ class RegimeModel(ABC):
     ): ...
 
     @abstractmethod
-    def fit(self, splitter: Callable, n_splits: int) -> hmm.GaussianHMM | None:
-        """Fits the model. `splitter` carves off a chronological test
-        holdout (X -> (X_trainval, X_test)); hyperparameters are selected
-        by `n_splits`-fold walk-forward CV within X_trainval, scored
-        honestly on X_test, then refit on all of X for deployment.
-        `self.best_score` ends up holding that honest test-holdout score,
-        not the CV score used for selection -- see `self.cv_score`.
-        Returns the deployed GaussianHMM, or None if fitting failed (e.g.
-        not enough data)."""
+    def fit(self, n_splits: int) -> hmm.GaussianHMM | None:
+        """Fits the model. Hyperparameters are selected by `n_splits`-fold
+        walk-forward CV over all of `self.X` (never validates on data
+        older than its own training slice); `self.cv_score` ends up
+        holding the winning config's average CV score. The deployed model
+        is then refit on all of `self.X` for maximal information. Returns
+        the deployed GaussianHMM, or None if fitting failed (e.g. not
+        enough data)."""
 
     @abstractmethod
     def predict_states(self) -> np.ndarray | pd.DataFrame | None:
@@ -49,18 +46,29 @@ class RegimeModel(ABC):
         """One transition-matrix DataFrame per trained HMM layer."""
 
     @staticmethod
-    def _relabel_states_by_volatility(
-        original_states: np.ndarray, model: hmm.GaussianHMM, X: np.ndarray
-    ) -> np.ndarray:
-        """Relabels states 0..n-1 in order of increasing observation volatility."""
-        state_vols = []
-        for state in range(model.n_components):
-            state_obs = X[original_states == state]
-            vol = np.std(state_obs)
-            state_vols.append((state, vol))
+    def _volatility_rank_map(model: hmm.GaussianHMM) -> dict[int, int]:
+        """Maps each of `model`'s raw state indices to its rank by total
+        variance (trace of that state's fitted covariance matrix),
+        ascending -- 0 = lowest-variance state. Based on the model's own
+        fitted covariance, not raw observation dispersion: computing
+        np.std() over an observation slice with more than one feature
+        column would flatten unrelated feature units (e.g. returns and
+        several differently-scaled rolling-volatility windows) into one
+        meaningless scalar.
+        """
+        variances = [
+            (state, float(np.trace(np.atleast_2d(model.covars_[state]))))
+            for state in range(model.n_components)
+        ]
+        ranked = sorted(variances, key=lambda x: x[1])
+        return {old: new for new, (old, _) in enumerate(ranked)}
 
-        sorted_states = sorted(state_vols, key=lambda x: x[1])
-        state_map = {old: new for new, (old, _) in enumerate(sorted_states)}
+    @classmethod
+    def _relabel_states_by_volatility(
+        cls, original_states: np.ndarray, model: hmm.GaussianHMM
+    ) -> np.ndarray:
+        """Relabels states 0..n-1 in order of increasing total variance."""
+        state_map = cls._volatility_rank_map(model)
         return np.vectorize(state_map.get)(original_states)
 
     @staticmethod

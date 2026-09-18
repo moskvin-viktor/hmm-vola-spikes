@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -7,7 +6,7 @@ from hmmlearn import hmm
 
 from .base import RegimeModel
 from .config import LayeredHMMConfig
-from .trainer import refit_gaussian_hmm, score_on_test_holdout, select_best_gaussian_hmm
+from .trainer import refit_gaussian_hmm, select_best_gaussian_hmm
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +27,9 @@ class LayeredHMMModel(RegimeModel):
         self.cfg = config
         self.evaluation_metric = evaluation_metric
         self.layers: list[hmm.GaussianHMM] = []
-        self.best_score = -np.inf
         self.cv_score = -np.inf
 
-    def fit(self, splitter: Callable, n_splits: int) -> hmm.GaussianHMM | None:
+    def fit(self, n_splits: int) -> hmm.GaussianHMM | None:
         if len(self.X) < 20:
             logger.warning(f"[{self.name}] Not enough data to train")
             return None
@@ -45,13 +43,8 @@ class LayeredHMMModel(RegimeModel):
             log_prefix = f"[{self.name}] Layer {layer_idx + 1} "
             logger.info(f"[{self.name}] Training Layer {layer_idx + 1}")
 
-            X_trainval, X_test = splitter(current_X)
-            if len(X_trainval) < 20:
-                logger.error(f"{log_prefix}Not enough trainval data after holdout.")
-                return None
-
             best_n, best_seed, cv_score = select_best_gaussian_hmm(
-                X_trainval,
+                current_X,
                 component_range=range(
                     layer_cfg.min_components, layer_cfg.max_components + 1
                 ),
@@ -72,24 +65,8 @@ class LayeredHMMModel(RegimeModel):
             if cv_score > self.cv_score:
                 self.cv_score = cv_score
 
-            test_score = score_on_test_holdout(
-                X_trainval,
-                X_test,
-                cv_score,
-                n_components=best_n,
-                seed=best_seed,
-                covariance_type=layer_cfg.covariance_type,
-                init_params=layer_cfg.init_params,
-                n_iter=layer_cfg.n_iter,
-                tol=self.cfg.tol,
-                evaluation_metric=self.evaluation_metric,
-                log_prefix=log_prefix,
-            )
-            if test_score > self.best_score:
-                self.best_score = test_score
-
             # Deployed layer: refit the winning config on all of this
-            # layer's current_X (train + CV + test).
+            # layer's current_X.
             layer_model = refit_gaussian_hmm(
                 current_X,
                 n_components=best_n,
@@ -122,9 +99,7 @@ class LayeredHMMModel(RegimeModel):
 
         for idx, model in enumerate(self.layers):
             raw_states = model.predict(current_X)
-            relabeled_states = self._relabel_states_by_volatility(
-                raw_states, model, current_X
-            )
+            relabeled_states = self._relabel_states_by_volatility(raw_states, model)
             all_layer_states[f"regime_layer{idx}"] = relabeled_states
 
             if idx < len(self.layers) - 1:

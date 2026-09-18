@@ -39,15 +39,13 @@ class FakeRegimeModel(RegimeModel):
         self.X = X
         self.cfg = config
         self.evaluation_metric = evaluation_metric
-        self.best_score = 1.0
         self.cv_score = -float("inf")
         self.fitted = False
         FakeRegimeModel.instances.append(self)
 
-    def fit(self, splitter, n_splits):
+    def fit(self, n_splits):
         self.fitted = True
         self.cv_score = 0.5
-        splitter(self.X)  # exercise the injected splitter, like a real model would
         return SimpleNamespace(n_components=2)
 
     def predict_states(self):
@@ -68,7 +66,7 @@ def _cfg():
     return OmegaConf.create(
         {
             "FakeRegimeModel": {"dummy": True},
-            "split": {"test_size": 0.15, "n_splits": 3},
+            "split": {"n_splits": 3},
         }
     )
 

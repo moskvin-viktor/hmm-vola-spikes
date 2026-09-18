@@ -3,9 +3,7 @@ import numpy as np
 from hmmstock.models.trainer import (
     cv_score_gaussian_hmm,
     refit_gaussian_hmm,
-    score_on_test_holdout,
     select_best_gaussian_hmm,
-    select_best_gaussian_hmm_holdout,
 )
 
 
@@ -112,44 +110,6 @@ def test_select_best_returns_none_when_everything_fails():
     assert (best_n, best_seed, best_score) == (None, None, float("-inf"))
 
 
-# -- select_best_gaussian_hmm_holdout (single split, scarce-data path) ------
-
-
-def test_select_best_holdout_picks_highest_score():
-    X = _synthetic_X(n=40)
-    X_train, X_test = X[:30], X[30:]
-    metric = _ScoreByComponents()
-
-    best_n, best_seed, best_score = select_best_gaussian_hmm_holdout(
-        X_train,
-        X_test,
-        component_range=range(2, 4),
-        n_fits=2,
-        evaluation_metric=metric,
-        **COMMON_KW,
-    )
-
-    assert best_n == 3
-    assert best_score == 3
-
-
-def test_select_best_holdout_falls_back_to_in_sample_when_test_empty():
-    X_train = _synthetic_X(n=30)
-    metric = _ScoreByComponents()
-
-    best_n, best_seed, best_score = select_best_gaussian_hmm_holdout(
-        X_train,
-        np.empty((0, 2)),
-        component_range=range(2, 3),
-        n_fits=1,
-        evaluation_metric=metric,
-        **COMMON_KW,
-    )
-
-    assert best_n == 2  # still finds a candidate, scored on X_train itself
-    assert metric.calls == 1
-
-
 # -- refit_gaussian_hmm ------------------------------------------------------
 
 
@@ -169,42 +129,3 @@ def test_refit_returns_none_on_failure():
     model = refit_gaussian_hmm(X, n_components=10, seed=0, **COMMON_KW)
 
     assert model is None
-
-
-# -- score_on_test_holdout ---------------------------------------------------
-
-
-def test_score_on_test_holdout_scores_a_fresh_refit_on_test_data():
-    X = _synthetic_X(n=60)
-    X_trainval, X_test = X[:50], X[50:]
-    metric = _ScoreByComponents()
-
-    score = score_on_test_holdout(
-        X_trainval,
-        X_test,
-        cv_score=-999,
-        n_components=2,
-        seed=0,
-        evaluation_metric=metric,
-        **COMMON_KW,
-    )
-
-    assert score == 2  # fake metric returns n_components, not the cv_score fallback
-
-
-def test_score_on_test_holdout_falls_back_to_cv_score_when_test_empty():
-    X_trainval = _synthetic_X(n=50)
-    metric = _ScoreByComponents()
-
-    score = score_on_test_holdout(
-        X_trainval,
-        np.empty((0, 2)),
-        cv_score=-42,
-        n_components=2,
-        seed=0,
-        evaluation_metric=metric,
-        **COMMON_KW,
-    )
-
-    assert score == -42
-    assert metric.calls == 0  # never even tried to evaluate

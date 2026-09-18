@@ -1,6 +1,5 @@
 import numpy as np
 
-from hmmstock.data.splitter import train_test_holdout
 from hmmstock.models.config import LayeredHMMConfig
 from hmmstock.models.layered import LayeredHMMModel
 
@@ -16,7 +15,6 @@ FAST_CONFIG = LayeredHMMConfig(
     num_layers=2, n_fits=3, random_seed=13, tol=1e-2, layers=[LAYER, LAYER]
 )
 
-HOLDOUT_SPLITTER = train_test_holdout
 N_SPLITS = 2
 
 
@@ -33,7 +31,7 @@ class _StubMetric:
 def test_fit_returns_none_below_min_data():
     model = LayeredHMMModel("AAPL", np.zeros((10, 2)), FAST_CONFIG, _StubMetric())
 
-    assert model.fit(HOLDOUT_SPLITTER, N_SPLITS) is None
+    assert model.fit(N_SPLITS) is None
     assert model.predict_states() is None
     assert model.transition_matrices() == []
 
@@ -42,11 +40,10 @@ def test_fit_trains_one_hmm_per_layer():
     X = _synthetic_X()
     model = LayeredHMMModel("AAPL", X, FAST_CONFIG, _StubMetric())
 
-    fitted = model.fit(HOLDOUT_SPLITTER, N_SPLITS)
+    fitted = model.fit(N_SPLITS)
 
     assert fitted is not None
     assert len(model.layers) == 2
-    assert model.best_score > float("-inf")
     assert model.cv_score > float("-inf")
 
     matrices = model.transition_matrices()
@@ -58,7 +55,7 @@ def test_fit_trains_one_hmm_per_layer():
 def test_predict_states_has_one_column_per_layer():
     X = _synthetic_X()
     model = LayeredHMMModel("AAPL", X, FAST_CONFIG, _StubMetric())
-    model.fit(HOLDOUT_SPLITTER, N_SPLITS)
+    model.fit(N_SPLITS)
 
     states = model.predict_states()
 

@@ -44,13 +44,13 @@ A **Hidden Markov Model (HMM)** is a **probabilistic model** that assumes:
 
 ## Evaluation
 
-Hyperparameters (`n_components`, random seed) are selected by **walk-forward cross-validation**, not a single lucky/unlucky split: `config/model/default.yaml`'s `split.test_size` (default 0.15) carves off a chronological holdout from the end of each ticker's series, untouched during selection; the rest is split into `split.n_splits` (default 5) expanding-window folds (`src/hmmstock/data/splitter.py`, via sklearn's `TimeSeriesSplit`) -- each fold trains on everything before a cutoff and validates on the chunk immediately after it, so nothing ever validates on data older than its own training set. The winning config is scored once on the untouched test holdout for an honest number, then refit on all data (train + CV + test) for the model that actually gets saved to `artifacts/`.
+Hyperparameters (`n_components`, random seed) are selected by **walk-forward cross-validation**, not a single lucky/unlucky split: `config/model/default.yaml`'s `split.n_splits` (default 5) expanding-window folds (`src/hmmstock/data/splitter.py`, via sklearn's `TimeSeriesSplit`) -- each fold trains on everything before a cutoff and validates on the chunk immediately after it, so nothing ever validates on data older than its own training set. `n_splits` is capped down automatically (`adaptive_n_splits`) when there's too little data to support it -- e.g. `HierarchicalHMMModel`'s per-regime sub-HMMs, already partitioned down to a handful of samples. The winning config's average CV score (`cv_score` in `metrics.json`) *is* the reported score -- there's no separate holdout-scoring pass; walk-forward CV already never looks at future data relative to what it trained on, so a second held-out slice on top of it was redundant complexity. The deployed model (saved to `artifacts/`) is then refit on all available data for maximal information.
 
 Which scoring metric drives fold selection is set by `evaluation_metric` in `config/model/default.yaml` (`LogLikelihoodWithEntropy` or `BICMetric`, built by `build_evaluation_metric()` in `src/hmmstock/metrics.py`):
 - **`LogLikelihoodWithEntropy`**: validation log-likelihood, normalized by sequence length, plus an entropy term over state-occupancy (weighted by `entropy_weight`) that favors more balanced use of the states. Scored on each fold's validation slice.
 - **`BICMetric`**: the model's Bayesian Information Criterion, scored on each fold's *training* slice -- that's the point of BIC, penalizing training likelihood by parameter count as a stand-in for held-out performance, without needing validation data at all.
 
-Each trained ticker's `metrics.json` entry (under `artifacts/{Model}/version_N/`) records both `cv_score` (what selected the winning config) and `best_score` (that config's honest score on the untouched test holdout) -- distinct numbers, not the same value serving double duty.
+Regime labels (`regime_layer0`, `top_level_state`, ...) are always ordered by increasing **total variance** -- the trace of each state's fitted covariance matrix, via `RegimeModel._volatility_rank_map()` -- not by re-deriving dispersion from raw observations, which would blend unrelated feature units (returns, several differently-scaled rolling-volatility windows, a market proxy) into one meaningless number once there's more than one feature column. `HierarchicalHMMModel`'s `sub_level_state` is relabeled the same way, but independently per top-level regime's own sub-HMM -- "sub-state 0" always means "the lowest-variance sub-state within that particular regime," not a value comparable across different regimes' sub-HMMs; group by `top_level_state` before comparing.
 
 
 ## Features
@@ -87,7 +87,7 @@ hatch run python fit_model.py model_class=HMMModel model.HMMModel.max_components
 hatch run python fit_model.py model_class=all  # train every model
 ```
 
-`scripts/train_all_models.sh` trains all three in one sweep with a wider HMM component search (`max_components` 2 -> 6, so it's not capped at a 2-state model) and fewer random restarts per candidate to keep that tractable -- CV/test-holdout methodology (`n_splits`, `test_size`) is untouched. Extra Hydra overrides are forwarded, e.g. `scripts/train_all_models.sh data.tickers='[AAPL,MSFT]'`.
+`scripts/train_all_models.sh` trains all three in one sweep with a wider component search for HMM (`max_components` 2 -> 6), `LayeredHMMModel`'s layer0 (4 -> 6), and `HierarchicalHMMModel`'s top layer (3 -> 6) -- none capped at their config defaults' ceilings -- and fewer random restarts per candidate to keep that tractable. CV methodology (`n_splits`) is untouched. Extra Hydra overrides are forwarded, e.g. `scripts/train_all_models.sh data.tickers='[AAPL,MSFT]'`.
 
 This will:
 

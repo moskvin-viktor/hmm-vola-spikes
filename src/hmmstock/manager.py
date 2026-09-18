@@ -1,5 +1,4 @@
 import logging
-from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -8,7 +7,7 @@ import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
 from .artifact_store import ArtifactStore, ArtifactVersion
-from .data.splitter import SplitConfig, train_test_holdout
+from .data.splitter import SplitConfig
 from .metrics import build_evaluation_metric
 from .models import HMMModel, RegimeModel
 
@@ -35,7 +34,6 @@ class RegimeModelManager:
         data_dict: dict[str, pd.DataFrame],
         cfg: DictConfig,
         evaluation_metric=None,
-        train_test_splitter=None,
         model_class: type[RegimeModel] = HMMModel,
     ):
         self.cfg = cfg
@@ -59,11 +57,7 @@ class RegimeModelManager:
             if split_node
             else {}
         )
-        split_config = SplitConfig(**split_cfg)
-        self.n_splits = split_config.n_splits
-        self.splitter = train_test_splitter or partial(
-            train_test_holdout, config=split_config
-        )
+        self.n_splits = SplitConfig(**split_cfg).n_splits
 
         self.model_class = model_class
         self.model_name = model_class.__name__
@@ -89,7 +83,7 @@ class RegimeModelManager:
 
             X = df.to_numpy()
             model = self.model_class(ticker, X, config, self.evaluation_metric)
-            fitted_model = model.fit(self.splitter, self.n_splits)
+            fitted_model = model.fit(self.n_splits)
 
             if not fitted_model:
                 logger.warning(
@@ -107,8 +101,7 @@ class RegimeModelManager:
             version.record_metric(
                 ticker,
                 fitted=True,
-                best_score=model.best_score,
-                cv_score=getattr(model, "cv_score", None),
+                cv_score=model.cv_score,
                 n_components=fitted_model.n_components,
             )
             version.write_model(ticker, model)
