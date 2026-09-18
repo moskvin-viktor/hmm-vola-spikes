@@ -8,6 +8,7 @@ HMMModel:
   random_seed: 13
   init_params: "stmc"
   n_fits: 100
+  n_iter: 100
   tol: 1e-4
   max_components: 2
 
@@ -21,10 +22,12 @@ LayeredHMMModel:
       max_components: 4
       covariance_type: "full"
       init_params: "stmc"
+      n_iter: 100
     - min_components: 2
       max_components: 2
       covariance_type: "full"
       init_params: "stmc"
+      n_iter: 100
 
 HierarchicalHMMModel:
   n_fits: 100
@@ -36,19 +39,23 @@ HierarchicalHMMModel:
     max_components: 3
     covariance_type: "full"
     init_params: "stmc"
+    n_iter: 100
 
   sub_layer:
     min_components: 2
     max_components: 3
     covariance_type: "full"
     init_params: "stmc"
+    n_iter: 100
 
-# Split config
+# Train/CV/test split. test_size is a chronological holdout (last
+# fraction of each ticker's series) never used for model selection;
+# n_splits is the number of expanding-window walk-forward CV folds run
+# over the rest, to pick n_components/seed. See src/hmmstock/data/splitter.py.
 split:
-  method: "default"
-  train_size: 0.8
-  shuffle: false
+  test_size: 0.15
+  n_splits: 5
 
-# Evaluation metric
+# Evaluation metric: "LogLikelihoodWithEntropy" or "BICMetric".
 evaluation_metric: "BICMetric"
 entropy_weight: 4

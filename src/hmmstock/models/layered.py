@@ -7,7 +7,7 @@ from hmmlearn import hmm
 
 from .base import RegimeModel
 from .config import LayeredHMMConfig
-from .trainer import fit_best_gaussian_hmm
+from .trainer import refit_gaussian_hmm, score_on_test_holdout, select_best_gaussian_hmm
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,9 @@ class LayeredHMMModel(RegimeModel):
         self.evaluation_metric = evaluation_metric
         self.layers: list[hmm.GaussianHMM] = []
         self.best_score = -np.inf
+        self.cv_score = -np.inf
 
-    def fit(self, splitter: Callable) -> hmm.GaussianHMM | None:
+    def fit(self, splitter: Callable, n_splits: int) -> hmm.GaussianHMM | None:
         if len(self.X) < 20:
             logger.warning(f"[{self.name}] Not enough data to train")
             return None
@@ -38,41 +39,77 @@ class LayeredHMMModel(RegimeModel):
         original_X = self.X.copy()
         current_X = original_X
         np.random.seed(self.cfg.random_seed)
-        best_model = None
+        final_model = None
 
         for layer_idx, layer_cfg in enumerate(self.cfg.layers):
+            log_prefix = f"[{self.name}] Layer {layer_idx + 1} "
             logger.info(f"[{self.name}] Training Layer {layer_idx + 1}")
-            X_train, X_validate = splitter(current_X)
 
-            best_model, best_score = fit_best_gaussian_hmm(
-                X_train,
-                X_validate,
+            X_trainval, X_test = splitter(current_X)
+            if len(X_trainval) < 20:
+                logger.error(f"{log_prefix}Not enough trainval data after holdout.")
+                return None
+
+            best_n, best_seed, cv_score = select_best_gaussian_hmm(
+                X_trainval,
                 component_range=range(
                     layer_cfg.min_components, layer_cfg.max_components + 1
                 ),
                 n_fits=self.cfg.n_fits,
+                n_splits=n_splits,
                 covariance_type=layer_cfg.covariance_type,
                 init_params=layer_cfg.init_params,
+                n_iter=layer_cfg.n_iter,
                 tol=self.cfg.tol,
                 evaluation_metric=self.evaluation_metric,
-                log_prefix=f"[{self.name}] Layer {layer_idx + 1} ",
+                log_prefix=log_prefix,
             )
 
-            if best_model is None:
-                logger.error(
-                    f"[{self.name}] No model could be trained for Layer {layer_idx + 1}"
-                )
+            if best_n is None or best_seed is None:
+                logger.error(f"{log_prefix}CV found no viable model.")
                 return None
 
-            if best_score > self.best_score:
-                self.best_score = best_score
+            if cv_score > self.cv_score:
+                self.cv_score = cv_score
 
-            self.layers.append(best_model)
+            test_score = score_on_test_holdout(
+                X_trainval,
+                X_test,
+                cv_score,
+                n_components=best_n,
+                seed=best_seed,
+                covariance_type=layer_cfg.covariance_type,
+                init_params=layer_cfg.init_params,
+                n_iter=layer_cfg.n_iter,
+                tol=self.cfg.tol,
+                evaluation_metric=self.evaluation_metric,
+                log_prefix=log_prefix,
+            )
+            if test_score > self.best_score:
+                self.best_score = test_score
 
-            posterior = best_model.predict_proba(current_X)
+            # Deployed layer: refit the winning config on all of this
+            # layer's current_X (train + CV + test).
+            layer_model = refit_gaussian_hmm(
+                current_X,
+                n_components=best_n,
+                seed=best_seed,
+                covariance_type=layer_cfg.covariance_type,
+                init_params=layer_cfg.init_params,
+                n_iter=layer_cfg.n_iter,
+                tol=self.cfg.tol,
+            )
+            if layer_model is None:
+                logger.error(f"{log_prefix}Final refit failed.")
+                return None
+
+            self.layers.append(layer_model)
+            final_model = layer_model
+
+            posterior = layer_model.predict_proba(current_X)
             current_X = np.hstack([original_X, posterior])
 
-        return best_model
+        return final_model
 
     def predict_states(self) -> pd.DataFrame | None:
         if not self.layers:

@@ -10,6 +10,7 @@ class LayerConfig(BaseModel):
     max_components: int
     covariance_type: str
     init_params: str
+    n_iter: int = 100
 
 
 class HMMConfig(BaseModel):
@@ -19,6 +20,7 @@ class HMMConfig(BaseModel):
     random_seed: int
     init_params: str
     n_fits: int
+    n_iter: int = 100
     tol: float
     max_components: int
 

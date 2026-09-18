@@ -21,7 +21,8 @@ class RegimeModel(ABC):
 
     name: str
     X: np.ndarray
-    best_score: float
+    best_score: float  # honest score on the held-out test slice, set by fit()
+    cv_score: float  # CV score fit() used to select hyperparameters, for comparison
 
     @abstractmethod
     def __init__(
@@ -29,9 +30,15 @@ class RegimeModel(ABC):
     ): ...
 
     @abstractmethod
-    def fit(self, splitter: Callable) -> hmm.GaussianHMM | None:
-        """Fits the model. Returns the best/final trained GaussianHMM, or
-        None if fitting failed (e.g. not enough data)."""
+    def fit(self, splitter: Callable, n_splits: int) -> hmm.GaussianHMM | None:
+        """Fits the model. `splitter` carves off a chronological test
+        holdout (X -> (X_trainval, X_test)); hyperparameters are selected
+        by `n_splits`-fold walk-forward CV within X_trainval, scored
+        honestly on X_test, then refit on all of X for deployment.
+        `self.best_score` ends up holding that honest test-holdout score,
+        not the CV score used for selection -- see `self.cv_score`.
+        Returns the deployed GaussianHMM, or None if fitting failed (e.g.
+        not enough data)."""
 
     @abstractmethod
     def predict_states(self) -> np.ndarray | pd.DataFrame | None:

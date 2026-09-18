@@ -1,20 +1,23 @@
 import numpy as np
 
+from hmmstock.data.splitter import train_test_holdout
 from hmmstock.models.config import LayeredHMMConfig
 from hmmstock.models.layered import LayeredHMMModel
 
 LAYER = dict(
-    min_components=2, max_components=2, covariance_type="diag", init_params="stmc"
+    min_components=2,
+    max_components=2,
+    covariance_type="diag",
+    init_params="stmc",
+    n_iter=10,
 )
 
 FAST_CONFIG = LayeredHMMConfig(
-    num_layers=2, n_fits=5, random_seed=13, tol=1e-2, layers=[LAYER, LAYER]
+    num_layers=2, n_fits=3, random_seed=13, tol=1e-2, layers=[LAYER, LAYER]
 )
 
-
-def _identity_split(X):
-    split = int(len(X) * 0.8)
-    return X[:split], X[split:]
+HOLDOUT_SPLITTER = train_test_holdout
+N_SPLITS = 2
 
 
 def _synthetic_X(n=150, seed=0):
@@ -23,14 +26,14 @@ def _synthetic_X(n=150, seed=0):
 
 
 class _StubMetric:
-    def evaluate(self, model, X_validate):
+    def evaluate(self, model, X_train, X_validate):
         return model.score(X_validate)
 
 
 def test_fit_returns_none_below_min_data():
     model = LayeredHMMModel("AAPL", np.zeros((10, 2)), FAST_CONFIG, _StubMetric())
 
-    assert model.fit(_identity_split) is None
+    assert model.fit(HOLDOUT_SPLITTER, N_SPLITS) is None
     assert model.predict_states() is None
     assert model.transition_matrices() == []
 
@@ -39,11 +42,12 @@ def test_fit_trains_one_hmm_per_layer():
     X = _synthetic_X()
     model = LayeredHMMModel("AAPL", X, FAST_CONFIG, _StubMetric())
 
-    fitted = model.fit(_identity_split)
+    fitted = model.fit(HOLDOUT_SPLITTER, N_SPLITS)
 
     assert fitted is not None
     assert len(model.layers) == 2
     assert model.best_score > float("-inf")
+    assert model.cv_score > float("-inf")
 
     matrices = model.transition_matrices()
     assert len(matrices) == 2
@@ -54,7 +58,7 @@ def test_fit_trains_one_hmm_per_layer():
 def test_predict_states_has_one_column_per_layer():
     X = _synthetic_X()
     model = LayeredHMMModel("AAPL", X, FAST_CONFIG, _StubMetric())
-    model.fit(_identity_split)
+    model.fit(HOLDOUT_SPLITTER, N_SPLITS)
 
     states = model.predict_states()
 

@@ -40,11 +40,13 @@ class FakeRegimeModel(RegimeModel):
         self.cfg = config
         self.evaluation_metric = evaluation_metric
         self.best_score = 1.0
+        self.cv_score = -float("inf")
         self.fitted = False
         FakeRegimeModel.instances.append(self)
 
-    def fit(self, splitter):
+    def fit(self, splitter, n_splits):
         self.fitted = True
+        self.cv_score = 0.5
         splitter(self.X)  # exercise the injected splitter, like a real model would
         return SimpleNamespace(n_components=2)
 
@@ -66,7 +68,7 @@ def _cfg():
     return OmegaConf.create(
         {
             "FakeRegimeModel": {"dummy": True},
-            "split": {"train_size": 0.8, "shuffle": False},
+            "split": {"test_size": 0.15, "n_splits": 3},
         }
     )
 
@@ -81,7 +83,7 @@ class _NullMetric:
     """Stand-in for LogLikelihoodWithEntropy; irrelevant here since
     FakeRegimeModel never calls evaluate()."""
 
-    def evaluate(self, model, X_validate):
+    def evaluate(self, model, X_train, X_validate):
         return 0.0
 
 

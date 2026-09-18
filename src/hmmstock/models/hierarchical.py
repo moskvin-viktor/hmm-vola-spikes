@@ -7,7 +7,12 @@ from hmmlearn import hmm
 
 from .base import RegimeModel
 from .config import HierarchicalHMMConfig
-from .trainer import fit_best_gaussian_hmm
+from .trainer import (
+    refit_gaussian_hmm,
+    score_on_test_holdout,
+    select_best_gaussian_hmm,
+    select_best_gaussian_hmm_holdout,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +22,13 @@ class HierarchicalHMMModel(RegimeModel):
     high-level regimes, and a separate sub-HMM is trained per top-level
     regime to model local dynamics within it.
 
-    Note: sub-HMMs are trained and scored on the same partition of data
-    (no held-out split within a regime) -- there typically isn't enough
-    data per regime for a further split. transition_matrices() currently
-    only exposes the top-level matrix; no per-sub-HMM matrices are saved.
+    The top-level HMM gets the same walk-forward CV + test-holdout
+    treatment as HMMModel. Sub-HMMs are trained on partitions of an
+    already-small dataset (must have >=10 samples), too little for
+    multi-fold CV, so they get a single train/test holdout split instead
+    (still chronologically honest, just not averaged over folds).
+    transition_matrices() currently only exposes the top-level matrix; no
+    per-sub-HMM matrices are saved.
     """
 
     config_cls = HierarchicalHMMConfig
@@ -35,38 +43,75 @@ class HierarchicalHMMModel(RegimeModel):
         self.top: hmm.GaussianHMM | None = None
         self.sub_models: dict[int, hmm.GaussianHMM] = {}
         self.best_score = -np.inf
+        self.cv_score = -np.inf
 
-    def fit(self, splitter: Callable) -> hmm.GaussianHMM | None:
+    def fit(self, splitter: Callable, n_splits: int) -> hmm.GaussianHMM | None:
         if len(self.X) < 20:
             logger.warning(f"[{self.name}] Not enough data to train")
             return None
 
         np.random.seed(self.cfg.random_seed)
-        X_train, X_validate = splitter(self.X)
+        X_trainval, X_test = splitter(self.X)
+
+        if len(X_trainval) < 20:
+            logger.warning(f"[{self.name}] Not enough trainval data after holdout.")
+            return None
 
         logger.info(f"[{self.name}] Training Top-level HMM")
         top_cfg = self.cfg.top_layer
-        best_top, _ = fit_best_gaussian_hmm(
-            X_train,
-            X_validate,
+        best_n, best_seed, cv_score = select_best_gaussian_hmm(
+            X_trainval,
             component_range=range(top_cfg.min_components, top_cfg.max_components + 1),
             n_fits=self.cfg.n_fits,
+            n_splits=n_splits,
             covariance_type=top_cfg.covariance_type,
             init_params=top_cfg.init_params,
+            n_iter=top_cfg.n_iter,
             tol=self.cfg.tol,
             evaluation_metric=self.evaluation_metric,
             log_prefix=f"[{self.name}] Top ",
         )
 
-        if best_top is None:
+        if best_n is None or best_seed is None:
             logger.error(f"[{self.name}] No Top-level model could be trained")
             return None
 
-        self.top = best_top
+        self.cv_score = cv_score
+        test_score = score_on_test_holdout(
+            X_trainval,
+            X_test,
+            cv_score,
+            n_components=best_n,
+            seed=best_seed,
+            covariance_type=top_cfg.covariance_type,
+            init_params=top_cfg.init_params,
+            n_iter=top_cfg.n_iter,
+            tol=self.cfg.tol,
+            evaluation_metric=self.evaluation_metric,
+            log_prefix=f"[{self.name}] Top ",
+        )
+        if test_score > self.best_score:
+            self.best_score = test_score
+
+        # Deployed top-level model: refit the winning config on all data.
+        self.top = refit_gaussian_hmm(
+            self.X,
+            n_components=best_n,
+            seed=best_seed,
+            covariance_type=top_cfg.covariance_type,
+            init_params=top_cfg.init_params,
+            n_iter=top_cfg.n_iter,
+            tol=self.cfg.tol,
+        )
+        if self.top is None:
+            logger.error(f"[{self.name}] Top-level final refit failed")
+            return None
+
         top_states = self.top.predict(self.X)
 
         sub_cfg = self.cfg.sub_layer
         for top_state in np.unique(top_states):
+            log_prefix = f"[{self.name}] Sub {top_state} "
             logger.info(f"[{self.name}] Training Sub-HMM for Top State {top_state}")
             sub_X = self.X[top_states == top_state]
 
@@ -76,28 +121,47 @@ class HierarchicalHMMModel(RegimeModel):
                 )
                 continue
 
-            best_sub, best_sub_score = fit_best_gaussian_hmm(
-                sub_X,
-                sub_X,
+            sub_trainval, sub_test = splitter(sub_X)
+
+            best_sub_n, best_sub_seed, sub_score = select_best_gaussian_hmm_holdout(
+                sub_trainval,
+                sub_test,
                 component_range=range(
                     sub_cfg.min_components, sub_cfg.max_components + 1
                 ),
                 n_fits=self.cfg.n_fits,
                 covariance_type=sub_cfg.covariance_type,
                 init_params=sub_cfg.init_params,
+                n_iter=sub_cfg.n_iter,
                 tol=self.cfg.tol,
                 evaluation_metric=self.evaluation_metric,
-                log_prefix=f"[{self.name}] Sub {top_state} ",
+                log_prefix=log_prefix,
             )
 
-            if best_sub is not None:
-                self.sub_models[top_state] = best_sub
-                if best_sub_score > self.best_score:
-                    self.best_score = best_sub_score
-            else:
+            if best_sub_n is None or best_sub_seed is None:
                 logger.error(
                     f"[{self.name}] No Sub-HMM could be trained for Top State {top_state}"
                 )
+                continue
+
+            # Deployed sub-model: refit the winning config on all of this
+            # regime's data (sub_trainval + sub_test).
+            final_sub_model = refit_gaussian_hmm(
+                sub_X,
+                n_components=best_sub_n,
+                seed=best_sub_seed,
+                covariance_type=sub_cfg.covariance_type,
+                init_params=sub_cfg.init_params,
+                n_iter=sub_cfg.n_iter,
+                tol=self.cfg.tol,
+            )
+            if final_sub_model is None:
+                logger.error(f"{log_prefix}Final refit failed")
+                continue
+
+            self.sub_models[top_state] = final_sub_model
+            if sub_score > self.best_score:
+                self.best_score = sub_score
 
         return self.top
 

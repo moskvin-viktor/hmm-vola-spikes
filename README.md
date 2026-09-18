@@ -44,9 +44,13 @@ A **Hidden Markov Model (HMM)** is a **probabilistic model** that assumes:
 
 ## Evaluation
 
-Model selection (choosing among the random restarts and component counts in `config/model/default.yaml`) is scored per fit using `LogLikelihoodWithEntropy`: validation log-likelihood, normalized by sequence length, plus an entropy term over state-occupancy (weighted by `entropy_weight` in `config/model/default.yaml`) that favors more balanced use of the states.
+Hyperparameters (`n_components`, random seed) are selected by **walk-forward cross-validation**, not a single lucky/unlucky split: `config/model/default.yaml`'s `split.test_size` (default 0.15) carves off a chronological holdout from the end of each ticker's series, untouched during selection; the rest is split into `split.n_splits` (default 5) expanding-window folds (`src/hmmstock/data/splitter.py`, via sklearn's `TimeSeriesSplit`) -- each fold trains on everything before a cutoff and validates on the chunk immediately after it, so nothing ever validates on data older than its own training set. The winning config is scored once on the untouched test holdout for an honest number, then refit on all data (train + CV + test) for the model that actually gets saved to `artifacts/`.
 
-A second metric, `BICMetric` (the model's Bayesian Information Criterion), also exists in `src/hmmstock/metrics.py` but isn't currently wired up anywhere — `config/model/default.yaml`'s `evaluation_metric: "BICMetric"` key is unused; only `LogLikelihoodWithEntropy` runs.
+Which scoring metric drives fold selection is set by `evaluation_metric` in `config/model/default.yaml` (`LogLikelihoodWithEntropy` or `BICMetric`, built by `build_evaluation_metric()` in `src/hmmstock/metrics.py`):
+- **`LogLikelihoodWithEntropy`**: validation log-likelihood, normalized by sequence length, plus an entropy term over state-occupancy (weighted by `entropy_weight`) that favors more balanced use of the states. Scored on each fold's validation slice.
+- **`BICMetric`**: the model's Bayesian Information Criterion, scored on each fold's *training* slice -- that's the point of BIC, penalizing training likelihood by parameter count as a stand-in for held-out performance, without needing validation data at all.
+
+Each trained ticker's `metrics.json` entry (under `artifacts/{Model}/version_N/`) records both `cv_score` (what selected the winning config) and `best_score` (that config's honest score on the untouched test holdout) -- distinct numbers, not the same value serving double duty.
 
 
 ## Features

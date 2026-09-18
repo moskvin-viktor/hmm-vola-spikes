@@ -8,8 +8,8 @@ import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
 from .artifact_store import ArtifactStore, ArtifactVersion
-from .data.splitter import SplitConfig, train_val_split
-from .metrics import LogLikelihoodWithEntropy
+from .data.splitter import SplitConfig, train_test_holdout
+from .metrics import build_evaluation_metric
 from .models import HMMModel, RegimeModel
 
 logger = logging.getLogger(__name__)
@@ -50,11 +50,7 @@ class RegimeModelManager:
         self.evaluation_metric = (
             evaluation_metric()
             if evaluation_metric
-            else (
-                LogLikelihoodWithEntropy(
-                    entropy_weight=self.cfg.get("entropy_weight", 3)
-                )
-            )
+            else build_evaluation_metric(self.cfg)
         )
 
         split_node = self.cfg.get("split")
@@ -63,8 +59,10 @@ class RegimeModelManager:
             if split_node
             else {}
         )
+        split_config = SplitConfig(**split_cfg)
+        self.n_splits = split_config.n_splits
         self.splitter = train_test_splitter or partial(
-            train_val_split, config=SplitConfig(**split_cfg)
+            train_test_holdout, config=split_config
         )
 
         self.model_class = model_class
@@ -91,7 +89,7 @@ class RegimeModelManager:
 
             X = df.to_numpy()
             model = self.model_class(ticker, X, config, self.evaluation_metric)
-            fitted_model = model.fit(self.splitter)
+            fitted_model = model.fit(self.splitter, self.n_splits)
 
             if not fitted_model:
                 logger.warning(
@@ -110,6 +108,7 @@ class RegimeModelManager:
                 ticker,
                 fitted=True,
                 best_score=model.best_score,
+                cv_score=getattr(model, "cv_score", None),
                 n_components=fitted_model.n_components,
             )
             version.write_model(ticker, model)
