@@ -35,7 +35,9 @@ def test_run_pipeline_against_live_yfinance(tmp_path):
     assert set(data.keys()) == set(order.tickers)
     for ticker, df in data.items():
         assert len(df) > 50, f"{ticker}: unexpectedly few rows ({len(df)})"
-        assert not df.isna().any().any(), f"{ticker}: unexpected NaNs in pipeline output"
+        assert not df.isna().any().any(), (
+            f"{ticker}: unexpected NaNs in pipeline output"
+        )
 
         # Control variance: a flat/stale/bad ticker would silently
         # zscore-normalize into garbage instead of failing loudly, so
