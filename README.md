@@ -91,7 +91,7 @@ This will:
 
 - Train HMMs with up to N states (configurable)
 
-- Save regime-labeled outputs and transition matrices to the `results/` directory (gitignored — regenerated locally, not shipped)
+- Save a new versioned run under `artifacts/{ModelName}/version_N/` (gitignored — regenerated locally, not shipped), each containing a snapshot of the config used, per-ticker model pickles, regime-state CSVs, transition-matrix CSVs, and a `metrics.json` summary. Nothing is ever overwritten — every `fit_model.py` run gets its own version.
 
 3. Launch the Dash app
 Start the interactive dashboard by running:
@@ -102,7 +102,7 @@ hatch run python app/app.py
 
 Then open http://127.0.0.1:8050/ in your browser.
 
-By default the dashboard reads from `examples/`, a small pre-computed dataset checked into the repo so the app (and the live demo) works without needing `yfinance` API access or a training run first. Run `fit_model.py` and point `HMMResultVisualization` at `results/` to see your own data instead.
+By default the dashboard reads from `examples/`, a small pre-computed dataset checked into the repo so the app (and the live demo) works without needing `yfinance` API access or a training run first. The Dash app is due to be replaced and doesn't yet read from the new `artifacts/` layout produced by `fit_model.py`.
 
 ### 5. Run Tests
 

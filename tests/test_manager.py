@@ -85,88 +85,64 @@ class _NullMetric:
         return 0.0
 
 
-def test_train_all_writes_csv_transition_matrix_and_pickle(tmp_path, monkeypatch):
+def _manager(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    FakeRegimeModel.instances.clear()
-
-    manager = RegimeModelManager(
+    return RegimeModelManager(
         data_dict=_sample_data(),
         cfg=_cfg(),
         model_class=FakeRegimeModel,
         evaluation_metric=_NullMetric,
     )
-    manager.train_all()
-
-    assert (tmp_path / "results/FakeRegimeModel/csvs/AAPL/regime_states.csv").exists()
-    assert (
-        tmp_path
-        / "results/FakeRegimeModel/transition_matrices/AAPL_transition_matrix_layer0.csv"
-    ).exists()
-    assert (
-        tmp_path / "results/FakeRegimeModel/saved_models/FakeRegimeModel_hmm.pkl"
-    ).exists()
-    assert len(FakeRegimeModel.instances) == 1
 
 
-def test_train_all_second_call_loads_from_store_without_refitting(
-    tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
+def test_train_all_writes_a_complete_version_directory(tmp_path, monkeypatch):
     FakeRegimeModel.instances.clear()
+    manager = _manager(tmp_path, monkeypatch)
 
-    RegimeModelManager(
-        data_dict=_sample_data(),
-        cfg=_cfg(),
-        model_class=FakeRegimeModel,
-        evaluation_metric=_NullMetric,
-    ).train_all()
+    version = manager.train_all()
+
+    assert version.path.resolve() == tmp_path / "artifacts/FakeRegimeModel/version_0"
+    assert (version.path / "config.yaml").exists()
+    assert (version.path / "metrics.json").exists()
+    assert (version.path / "models/AAPL.pkl").exists()
+    assert (version.path / "regime_states/AAPL.csv").exists()
+    assert (version.path / "transition_matrices/AAPL_layer0.csv").exists()
     assert len(FakeRegimeModel.instances) == 1
 
-    RegimeModelManager(
-        data_dict=_sample_data(),
-        cfg=_cfg(),
-        model_class=FakeRegimeModel,
-        evaluation_metric=_NullMetric,
-    ).train_all()
 
-    # second manager loaded the pickled model instead of constructing a new one
-    assert len(FakeRegimeModel.instances) == 1
+def test_train_all_never_overwrites_a_previous_version(tmp_path, monkeypatch):
+    FakeRegimeModel.instances.clear()
+    manager = _manager(tmp_path, monkeypatch)
+
+    first = manager.train_all()
+    second = manager.train_all()
+
+    assert first.path.name == "version_0"
+    assert second.path.name == "version_1"
+    assert first.path.exists()  # untouched by the second run
+    assert (first.path / "models/AAPL.pkl").exists()
+    assert len(FakeRegimeModel.instances) == 2  # retrained, not reloaded
 
 
 def test_write_transition_matrices_skips_unknown_ticker_without_raising(
     tmp_path, monkeypatch
 ):
-    monkeypatch.chdir(tmp_path)
+    manager = _manager(tmp_path, monkeypatch)
+    version = manager.artifact_store.new_version()
 
-    manager = RegimeModelManager(
-        data_dict=_sample_data(),
-        cfg=_cfg(),
-        model_class=FakeRegimeModel,
-        evaluation_metric=_NullMetric,
-    )
-
-    manager.write_transition_matrices("MSFT")  # never trained, must not raise
+    manager.write_transition_matrices("MSFT", version)  # never trained, must not raise
 
 
 def test_write_transition_matrices_skips_unfitted_model_without_raising(
     tmp_path, monkeypatch
 ):
-    monkeypatch.chdir(tmp_path)
-
-    manager = RegimeModelManager(
-        data_dict=_sample_data(),
-        cfg=_cfg(),
-        model_class=FakeRegimeModel,
-        evaluation_metric=_NullMetric,
-    )
+    manager = _manager(tmp_path, monkeypatch)
+    version = manager.artifact_store.new_version()
     unfitted = FakeRegimeModel("AAPL", np.zeros(5), _FakeConfig(), None)
     manager.models["AAPL"] = unfitted
 
     manager.write_transition_matrices(
-        "AAPL"
+        "AAPL", version
     )  # transition_matrices() == [], must not raise
 
-    assert not (
-        tmp_path
-        / "results/FakeRegimeModel/transition_matrices/AAPL_transition_matrix_layer0.csv"
-    ).exists()
+    assert not (version.path / "transition_matrices/AAPL_layer0.csv").exists()

@@ -7,11 +7,10 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
+from .artifact_store import ArtifactStore, ArtifactVersion
 from .data.splitter import SplitConfig, train_val_split
 from .metrics import LogLikelihoodWithEntropy
-from .model_store import ModelStore
 from .models import HMMModel, RegimeModel
-from .results_writer import ResultsWriter
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +21,13 @@ def sanitize_ticker(ticker: str) -> str:
 
 
 class RegimeModelManager:
-    """Trains one RegimeModel per ticker and writes its results to disk.
+    """Trains one RegimeModel per ticker and writes a new versioned
+    artifact set for the run.
 
     Model construction/training/prediction is delegated to the
-    RegimeModel subclass (model_class); persistence goes through
-    ModelStore, CSV/transition-matrix export through ResultsWriter --
-    this class only orchestrates the per-ticker loop.
+    RegimeModel subclass (model_class); every call to train_all() writes
+    a fresh artifacts/{model_name}/version_N/ via ArtifactStore -- no
+    run ever overwrites a previous one.
     """
 
     def __init__(
@@ -74,57 +74,54 @@ class RegimeModelManager:
         self.states: dict[str, np.ndarray | pd.DataFrame | None] = {}
         self.state_labeled_data: dict[str, pd.DataFrame] = {}
 
-        results_dir = Path(f"results/{self.model_name}")
-        self.store = ModelStore(
-            results_dir / "saved_models", f"{self.model_name}_hmm.pkl"
-        )
-        self.writer = ResultsWriter(
-            csv_dir=results_dir / "csvs",
-            transition_matrices_dir=results_dir / "transition_matrices",
-        )
+        self.artifact_store = ArtifactStore(Path("artifacts"), self.model_name)
 
     def _build_model_config(self):
         raw = OmegaConf.to_container(self.cfg[self.model_name], resolve=True)
         return self.model_class.config_cls.model_validate(raw)
 
-    def train_all(self):
-        """Train or load models for all tickers."""
-        self.models = self.store.load()
+    def train_all(self) -> ArtifactVersion:
+        """Train models for all tickers, writing a new artifact version."""
+        version = self.artifact_store.new_version()
+        version.write_config(self.cfg[self.model_name])
 
-        if self.models:
-            logger.info(f"Loaded saved models for {len(self.models)} tickers.")
-            for ticker, model in self.models.items():
-                self.states[ticker] = model.predict_states()
-                print(f"{model.best_score} for {self.model_name} and {ticker}.")
-        else:
-            config = self._build_model_config()
-            for ticker, df in self.data_dict.items():
-                original_ticker = self.original_ticker_map[ticker]
+        config = self._build_model_config()
+        for ticker, df in self.data_dict.items():
+            original_ticker = self.original_ticker_map[ticker]
 
-                X = df.to_numpy()
-                model = self.model_class(ticker, X, config, self.evaluation_metric)
-                fitted_model = model.fit(self.splitter)
+            X = df.to_numpy()
+            model = self.model_class(ticker, X, config, self.evaluation_metric)
+            fitted_model = model.fit(self.splitter)
 
-                if not fitted_model:
-                    logger.warning(
-                        f"No model fitted for {original_ticker} due to insufficient data or errors."
-                    )
-                    continue
-
-                logger.info(
-                    f"Training completed for {original_ticker} with {fitted_model.n_components} components."
+            if not fitted_model:
+                logger.warning(
+                    f"No model fitted for {original_ticker} due to insufficient data or errors."
                 )
+                version.record_metric(ticker, fitted=False)
+                continue
 
-                self.models[ticker] = model
-                self.states[ticker] = model.predict_states()
-                print(f"Trained models for {len(self.models)} tickers.")
-                print(f"{model.best_score} for {self.model_name} model and {ticker}.")
+            logger.info(
+                f"Training completed for {original_ticker} with {fitted_model.n_components} components."
+            )
 
-        self.store.save(self.models)
-        self.generate_state_labeled_data()
+            self.models[ticker] = model
+            self.states[ticker] = model.predict_states()
+            version.record_metric(
+                ticker,
+                fitted=True,
+                best_score=model.best_score,
+                n_components=fitted_model.n_components,
+            )
+            version.write_model(ticker, model)
+
+        version.flush_metrics()
+        self.generate_state_labeled_data(version)
 
         for ticker in self.data_dict:
-            self.write_transition_matrices(ticker)
+            self.write_transition_matrices(ticker, version)
+
+        logger.info(f"Wrote {self.model_name} artifacts to {version.path}")
+        return version
 
     def _get_states(self) -> dict[str, pd.DataFrame]:
         """Get predicted states for all tickers."""
@@ -147,8 +144,8 @@ class RegimeModelManager:
 
         return state_dict
 
-    def generate_state_labeled_data(self):
-        """Generate and save labeled datasets."""
+    def generate_state_labeled_data(self, version: ArtifactVersion):
+        """Generate and save labeled datasets for this run's version."""
         state_dict = self._get_states()
 
         for ticker, df in self.data_dict.items():
@@ -160,13 +157,13 @@ class RegimeModelManager:
             )
             self.state_labeled_data[ticker] = merged_df
 
-            csv_path = self.writer.write_regime_states(ticker, merged_df)
+            csv_path = version.write_regime_states(ticker, merged_df)
             logger.info(
                 f"Saved labeled regime data for {self.original_ticker_map[ticker]} to {csv_path}"
             )
 
-    def write_transition_matrices(self, ticker: str):
-        """Compute and save transition matrices for a ticker."""
+    def write_transition_matrices(self, ticker: str, version: ArtifactVersion):
+        """Compute and save transition matrices for a ticker's version."""
         ticker = sanitize_ticker(ticker)
         model_instance = self.models.get(ticker)
 
@@ -183,7 +180,7 @@ class RegimeModelManager:
             )
             return
 
-        paths = self.writer.write_transition_matrices(ticker, matrices)
+        paths = version.write_transition_matrices(ticker, matrices)
         for layer_idx, path in enumerate(paths):
             logger.info(
                 f"Saved transition matrix for {self.original_ticker_map[ticker]} (Layer {layer_idx}) to {path}"
