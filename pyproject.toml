@@ -39,12 +39,17 @@ features = ["dev"]
 
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
+test-e2e = "pytest -m e2e {args:tests}"
 fmt = "ruff format {args:src tests app fit_model.py}"
 lint = "ruff check {args:src tests app fit_model.py}"
 typecheck = "ty check {args:src}"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not e2e'"
+markers = [
+    "e2e: hits the real yfinance API (network required); run via `hatch run test-e2e`",
+]
 
 [tool.ruff]
 line-length = 88
