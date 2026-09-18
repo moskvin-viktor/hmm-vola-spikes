@@ -4,6 +4,7 @@ nav:
   - Data: data.md
   - Models: model.md
   - Visualization: visualization.md
+  - Findings: findings.md
 theme: readthedocs
 use_directory_urls: false
 plugins:
