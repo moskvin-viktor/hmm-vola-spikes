@@ -3,11 +3,12 @@ import argparse
 from omegaconf import OmegaConf
 
 from hmmstock import (
-    DataManager,
+    DataConfig,
     HierarchicalHMMModel,
     HMMModel,
     LayeredHMMModel,
     RegimeModelManager,
+    run_pipeline,
 )
 
 MODEL_CLASSES = {
@@ -34,9 +35,8 @@ def main():
     args = parse_args()
     model_names = list(MODEL_CLASSES) if args.model == "all" else [args.model]
 
-    config = OmegaConf.load("config/data.yaml")
-    dm = DataManager(config)
-    data = dm.get_data()
+    order = DataConfig.from_omegaconf(OmegaConf.load("config/data.yaml"))
+    data = run_pipeline(order)
 
     for model_name in model_names:
         model = RegimeModelManager(

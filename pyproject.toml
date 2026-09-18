@@ -15,6 +15,7 @@ dependencies = [
     "hmmlearn>=0.2.8",
     "joblib>=1.2.0",
     "omegaconf>=2.3.0",
+    "pydantic>=2.0",
     "scikit-learn>=1.0.2",
     "yfinance==0.2.54",
     "mkdocs>=1.6.1",

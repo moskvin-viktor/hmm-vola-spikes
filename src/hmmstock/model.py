@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -7,7 +8,7 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
-from .data.datamanager import default_split
+from .data.splitter import SplitConfig, train_val_split
 from .hmm_model import HMMModel
 from .metrics import LogLikelihoodWithEntropy
 
@@ -46,7 +47,15 @@ class RegimeModelManager:
         self.evaluation_metric = (
             evaluation_metric() if evaluation_metric else LogLikelihoodWithEntropy()
         )
-        self.splitter = train_test_splitter or default_split
+        split_node = self.cfg.get("split")
+        split_cfg = (
+            cast(dict, OmegaConf.to_container(split_node, resolve=True))
+            if split_node
+            else {}
+        )
+        self.splitter = train_test_splitter or partial(
+            train_val_split, config=SplitConfig(**split_cfg)
+        )
         self.model_class = model_class
         self.name = self.model_class.__name__
 

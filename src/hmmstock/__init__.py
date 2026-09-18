@@ -1,7 +1,8 @@
 import logging
 import os
 
-from .data.datamanager import DataManager
+from .data.config import DataConfig
+from .data.pipeline import run_pipeline
 from .hhmm_model import HierarchicalHMMModel
 from .hmm_model import HMMModel
 from .lhmm_model import LayeredHMMModel
