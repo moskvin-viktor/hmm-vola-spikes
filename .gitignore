@@ -184,3 +184,6 @@ cython_debug/
 # false in config/config.yaml, but keep this if that ever changes).
 /outputs/
 /multirun/
+
+# marimo's per-notebook session/scratch state
+**/__marimo__/
